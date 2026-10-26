@@ -30,29 +30,18 @@ def mergeBlocks(blocks):
 def overlapChecker(classBlocks, practiceBlock):
     """Check if blocks overlap
     
-        blocks: a list of (start, end) tuples
-        Returns ture or false baised on the if the times overlap
+        classBlocks: a list of (start, end) tuples
+        practiceBlock: a (start, end) tuple
+        Returns True if any classblock overlaps the practice block otherwise False
         """
 
     practice_start, practice_end = practiceBlock
 
     for class_start, class_end in classBlocks:
-        #does the practice start in the middel of class if so there is an overlap
-        if(class_start <= practice_start < class_end):
-            return True
 
-        #does the practice end in the middel of class if so there is an overlap
-        if(class_start < practice_end <= class_end):
+        #two ranges overlap if each start is before the end of the other, one block ending when a separate block starts is not an overlap
+        if(class_start < practice_end or practice_start < class_end):
             return True
-
-        #does the class start in the middel of practice if so there is an overlap
-        if(practice_start <= class_start < practice_end):
-            return True
-        
-        #does the class end in the middel of practice if so there is an overlap
-        if(practice_start < class_end <= practice_end):
-            return True
-
         
     return False
 
