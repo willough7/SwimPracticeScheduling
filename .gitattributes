@@ -1,0 +1,2 @@
+# Store all text files with LF in the repo
+* text=auto eol=lf

@@ -27,3 +27,11 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# macOS
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+desktop.ini
