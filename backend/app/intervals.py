@@ -40,6 +40,7 @@ def overlapChecker(classBlocks, practiceBlock):
     for class_start, class_end in classBlocks:
 
         #two ranges overlap if each start is before the end of the other, one block ending when a separate block starts is not an overlap
+        #think of it as a time line, you cant have two starts back to back, it must go start end start end...
         if(class_start < practice_end or practice_start < class_end):
             return True
         
