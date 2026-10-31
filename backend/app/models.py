@@ -23,11 +23,11 @@ class Swimmer:
 
 
 if __name__ == "__main__":
-    steve = Swimmer(First_Name="Jhon", 
-                    Last_Name="Minecraft", 
-                    Weights_Group=WeightsGroup.Three_Day_A, 
-                    Swim_Group=SwimGroup.Sprint_100s, 
-                    Dry_Land=True)
+    steve = Swimmer(first_name="Jhon", 
+                    last_name="Minecraft", 
+                    weights_group=WeightsGroup.Three_Day_A, 
+                    swim_group=SwimGroup.Sprint_100s, 
+                    dry_land=True)
 
     assert steve.first_name == "Jhon"
     assert steve.last_name == "Minecraft"
