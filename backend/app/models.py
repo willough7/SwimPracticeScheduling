@@ -2,15 +2,15 @@ from enum import Enum, auto
 from dataclasses import dataclass
 
 class WeightsGroup(Enum):
-    three_day_a = auto()
-    Three_day_b = auto()
-    four_day = auto()
+    THREE_DAY_A = auto()
+    THREE_DAY_B = auto()
+    FOUR_DAY = auto()
 
 class SwimGroup(Enum):
-    sprint_100s = auto()
-    sprint_200s = auto()
-    distance = auto()
-    im = auto()
+    SPRINT_100s = auto()
+    SPRINT_200s = auto()
+    DISTANCE = auto()
+    IM = auto()
 
 @dataclass
 class Swimmer:
@@ -25,13 +25,13 @@ class Swimmer:
 if __name__ == "__main__":
     steve = Swimmer(first_name="Jhon", 
                     last_name="Minecraft", 
-                    weights_group=WeightsGroup.Three_Day_A, 
-                    swim_group=SwimGroup.Sprint_100s, 
+                    weights_group=WeightsGroup.THREE_DAY_A, 
+                    swim_group=SwimGroup.SPRINT_100s, 
                     dry_land=True)
 
     assert steve.first_name == "Jhon"
     assert steve.last_name == "Minecraft"
-    assert steve.weights_group == WeightsGroup.Three_Day_A
-    assert steve.swim_group == SwimGroup.Sprint_100s
+    assert steve.weights_group == WeightsGroup.THREE_DAY_A
+    assert steve.swim_group == SwimGroup.SPRINT_100s
     assert steve.dry_land
     print("Succsses")
