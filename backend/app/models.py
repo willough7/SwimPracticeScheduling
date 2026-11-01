@@ -1,5 +1,6 @@
 from enum import Enum, auto
 from dataclasses import dataclass
+from datetime import time
 
 class WeightsGroup(Enum):
     THREE_DAY_A = auto()
@@ -21,6 +22,15 @@ class Swimmer:
     swim_group: SwimGroup
     dry_land: bool
 
+@dataclass
+class Session:
+    start_time: time
+    end_time: time
+
+    def __post_init__(self):
+        if self.start_time >= self.end_time:
+            raise ValueError("end time must be after start time")
+
 
 if __name__ == "__main__":
     steve = Swimmer(first_name="Jhon", 
@@ -34,4 +44,29 @@ if __name__ == "__main__":
     assert steve.weights_group == WeightsGroup.THREE_DAY_A
     assert steve.swim_group == SwimGroup.SPRINT_100s
     assert steve.dry_land
-    print("Succsses")
+
+    session = Session(start_time=time(17), end_time=time(19))
+
+    assert session.start_time == time(17)
+    assert session.end_time == time(19)
+
+    try:
+        Session(start_time=time(21), end_time=time(19))
+
+    except ValueError:
+        pass
+
+    else:
+        assert False, "inverted session time was not rejected"
+
+    try:
+        Session(start_time=time(19), end_time=time(19))
+
+    except ValueError:
+        pass
+
+    else:
+        assert False, "equal start and end time was not rejected"
+    
+
+    print("Success")
