@@ -51,6 +51,7 @@ class Practice:
     practice_type: PracticeType
     weights_groups: list[WeightsGroup]
     sessions: list[Session]
+    is_morning: bool = True
 
     def __post_init__(self):
         if self.practice_type == PracticeType.WEIGHTS and self.weights_groups == []:
@@ -94,21 +95,32 @@ if __name__ == "__main__":
     else:
         assert False, "equal start and end time was not rejected"
 
-    # --- Valid swim practice ---
+    # --- Valid afternoon swim practice ---
 
     practice = Practice(day=Day.MONDAY,
                         practice_type=PracticeType.SWIM,
                         weights_groups=[],
                         sessions=[Session(start_time=time(13), end_time=time(15)),
-                                  Session(start_time=time(15), end_time=time(17))])
+                                  Session(start_time=time(15), end_time=time(17))],
+                        is_morning=False)
 
     assert practice.day == Day.MONDAY
     assert practice.practice_type == PracticeType.SWIM
+    assert not practice.is_morning
     assert practice.weights_groups == []
     assert practice.sessions == [Session(start_time=time(13), end_time=time(15)),
                                  Session(start_time=time(15), end_time=time(17))]
 
-    # --- Valid practices of the other two types ---
+    # --- is_morning defaults to True when not given ---
+
+    default_practice = Practice(day=Day.MONDAY,
+                                practice_type=PracticeType.SWIM,
+                                weights_groups=[],
+                                sessions=[Session(start_time=time(6), end_time=time(7, 30))])
+
+    assert default_practice.is_morning, "is_morning should default to True"
+
+    # --- Valid practices of the other two types (rely on the default) ---
 
     weights_practice = Practice(day=Day.MONDAY,
                                 practice_type=PracticeType.WEIGHTS,
@@ -144,7 +156,8 @@ if __name__ == "__main__":
         Practice(day=Day.MONDAY,
                  practice_type=PracticeType.SWIM,
                  weights_groups=[WeightsGroup.FOUR_DAY],
-                 sessions=[Session(start_time=time(13), end_time=time(15))])
+                 sessions=[Session(start_time=time(13), end_time=time(15))],
+                 is_morning=False)
     except ValueError:
         pass
     else:
@@ -168,7 +181,8 @@ if __name__ == "__main__":
         Practice(day=Day.MONDAY,
                  practice_type=PracticeType.SWIM,
                  weights_groups=[],
-                 sessions=[])
+                 sessions=[],
+                 is_morning=False)
     except ValueError:
         pass
     else:
