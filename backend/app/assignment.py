@@ -1,5 +1,6 @@
 from datetime import time
 from app.models import Swimmer, Practice, PracticeType, Day, Session, WeightsGroup, SwimGroup
+from app.intervals import overlapChecker, mergeBlocks
 
 MORNING_BOUNDARY = time(9)
 
@@ -36,6 +37,28 @@ def practices_for_swimmer(athlete: Swimmer, todays_practices: list[Practice]) ->
                 assigned_practices.append(practice)
 
     return assigned_practices
+
+def session_selection(athlete: Swimmer, class_blocks, assigned_practices: list[Practice]) -> list[(Practice, int)]:
+
+    selected_sessions = []
+    for practice in assigned_practices:
+        if len(practice.sessions) < 1:
+            selected_sessions.append((practice, 0))
+            continue
+        
+        overlap = False
+        i = 0
+        for session in practice.sessions:
+            for start, end in class_blocks:
+                if overlapChecker((session.start_time, session.end_time), (start, end)):
+                    overlap = True
+
+            if not overlap:
+                selected_sessions.append(practice, i)
+
+            i += 1
+
+        
 
 
 def make_swimmer(weights_group: WeightsGroup, dry_land: bool = True) -> Swimmer:
