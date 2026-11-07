@@ -31,6 +31,7 @@ class Practice:
     day: Day
     start_time: time
     end_time: time
+    practice_title: str = "N/A"
     is_morning: bool = True
 
     def __post_init__(self):
