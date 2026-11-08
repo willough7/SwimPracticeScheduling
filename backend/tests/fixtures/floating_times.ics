@@ -1,0 +1,11 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//SwimPracticeScheduling//Test Fixture//EN
+COMMENT:Times with no TZID and no Z ("floating" times). Some calendar exports do this.
+BEGIN:VEVENT
+UID:floating@test
+SUMMARY:BIO 150
+DTSTART:20261110T100000
+DTEND:20261110T110000
+END:VEVENT
+END:VCALENDAR

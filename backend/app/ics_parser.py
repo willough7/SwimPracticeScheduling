@@ -51,9 +51,11 @@ def busy_blocks_for_week(calendar, week_start):
         if start.tzinfo is not None:
             start = start.astimezone(LOCAL_TZ)
             end = end.astimezone(LOCAL_TZ)
+        else:
+            start = start.replace(tzinfo=LOCAL_TZ)
+            end = end.replace(tzinfo=LOCAL_TZ)
 
-        name = str(event.get("SUMMARY", "Untitled"))
-        blocks.append((start, end, name))
+        blocks.append((start, end))
 
     blocks.sort()
     return blocks
@@ -68,8 +70,8 @@ def main():
     week_start = monday_of(date.fromisoformat(sys.argv[2]))
 
     print(f"Week of {week_start:%A, %B %d, %Y}\n")
-    for start, end, name in busy_blocks_for_week(calendar, week_start):
-        print(f"{start:%a}  {start:%I:%M %p} - {end:%I:%M %p}   {name}")
+    for start, end in busy_blocks_for_week(calendar, week_start):
+        print(f"{start:%a}  {start:%I:%M %p} - {end:%I:%M %p}")
 
 
 if __name__ == "__main__":
