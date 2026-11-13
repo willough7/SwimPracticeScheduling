@@ -1,6 +1,6 @@
-from enum import Enum, auto
+from enum import Enum
 from dataclasses import dataclass, field
-from datetime import time, date
+from datetime import time
 
 #day lines up with isoweekday()
 class Day(Enum):
@@ -13,9 +13,9 @@ class Day(Enum):
     SUNDAY = 7
 
 class WeightsGroup(Enum):
-    THREE_DAY_A = auto()
-    THREE_DAY_B = auto()
-    FOUR_DAY = auto()
+    THREE_DAY_A = "THREE_DAY_A"
+    THREE_DAY_B = "THREE_DAY_B"
+    FOUR_DAY = "FOUR_DAY"
 
 @dataclass
 class Swimmer:
