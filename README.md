@@ -46,6 +46,28 @@ backend/
   tests/            # pytest suite
 ```
 
+## API
+Interactive docs are generated automatically at `/docs` while the server is
+running. Endpoints follow REST conventions: plural nouns name collections,
+an id selects one item, and the HTTP method is the action.
+
+| Method | Path | Does | Success |
+|---|---|---|---|
+| POST | `/swimmers` | Create a swimmer | 201 |
+| GET | `/swimmers` | List all swimmers | 200 |
+| GET | `/swimmers/{swimmer_id}` | Get one swimmer | 200 |
+| DELETE | `/swimmers/{swimmer_id}` | Delete a swimmer | 204 |
+
+### Status codes
+| Code | Meaning | Where it comes from |
+|---|---|---|
+| 200 OK | Successful read | FastAPI default when a route returns normally |
+| 201 Created | New resource created | Set with `status_code=201` on the route |
+| 204 No Content | Success, no response body (deletes) | Set with `status_code=204` on the route |
+| 404 Not Found | The requested item doesn't exist | Raised in our code with `HTTPException` (`"Swimmer not found"`). FastAPI also returns a plain `"Not Found"` for URLs with no matching route. |
+| 422 Unprocessable Entity | Request body or path failed validation | Raised automatically by FastAPI/Pydantic; the route never runs |
+| 500 Internal Server Error | A bug: an unhandled exception in our code | Raised automatically; details appear in the server terminal, not the response |
+
 ## Running locally
 From the `backend` folder:
 
