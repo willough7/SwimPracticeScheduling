@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import Enum, IntEnum
 from dataclasses import dataclass, field
 from datetime import time
 
 #day lines up with isoweekday()
-class Day(Enum):
+class Day(IntEnum):
     MONDAY = 1
     TUESDAY = 2
     WEDNESDAY = 3
