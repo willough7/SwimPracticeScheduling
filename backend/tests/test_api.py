@@ -55,7 +55,44 @@ def test_list_all_swimmers():
     assert response.status_code == 200
     assert created_swimmers == response.json()
 
+def test_get_nonexisting_swimmer_is_404_error():
+    swimmer_id = 1
+    response = client.get(f"/swimmers/{swimmer_id}")
 
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Swimmer not found"
 
+def test_delete_nonexisting_swimmer_is_404_error():
+        swimmer_id = 1
+        response = client.delete(f"/swimmers/{swimmer_id}")
 
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Swimmer not found"
+
+def test_invalid_weights_group_is_422_error():
+    overrides = {"weights_group": "megaLifter"}
+    response = client.post("/swimmers", json={**VALID_SWIMMER, **overrides})
     
+    assert response.status_code == 422
+
+def test_empy_name_is_422_error():
+    overrides = {"first_name": ""}
+    response = client.post("/swimmers", json={**VALID_SWIMMER, **overrides})
+    
+    assert response.status_code == 422
+
+def test_swimmer_storage_starts_empty():
+    response = client.get("/swimmers")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_get_of_deleted_swimmer_is_404_error():
+    swimmer_one = create_swimmer()
+    swimmer_one_id = swimmer_one["swimmer_id"]
+
+    deleted_response = client.delete(f"/swimmers/{swimmer_one_id}")
+    assert deleted_response.status_code == 204
+
+    response = client.get(f"/swimmers/{swimmer_one_id}")
+    assert response.status_code == 404
