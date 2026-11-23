@@ -5,6 +5,17 @@ from app.models import Swimmer, Practice, Day
 
 app = FastAPI(title="Swim Practice Scheduler")
 
+def swimmer_to_swimmerout(swimmer: Swimmer) -> SwimmerOut:
+    return SwimmerOut(
+        first_name=swimmer.first_name,
+        last_name=swimmer.last_name,
+        weights_group=swimmer.weights_group,
+        tags=swimmer.tags,
+        swimmer_id=swimmer.swimmer_id,
+        has_schedule=swimmer.ics_data is not None
+        )
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -14,17 +25,18 @@ def create_swimmer(data: SwimmerCreate):
     new_id = next(_ids)
     swimmer = Swimmer(swimmer_id=new_id, **data.model_dump())
     swimmers[new_id] = swimmer
-    return swimmer
+    return swimmer_to_swimmerout(swimmer)
 
 @app.get("/swimmers", response_model=list[SwimmerOut])
 def get_swimmers():
-    return list(swimmers.values())
+    return [swimmer_to_swimmerout(s) for s in swimmers.values()]
 
 @app.get("/swimmers/{swimmer_id}", response_model=SwimmerOut)
 def get_swimmer(swimmer_id: int):
-    if swimmers.get(swimmer_id) is None:
+    swimmer = swimmers.get(swimmer_id)
+    if swimmer is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
-    return swimmers.get(swimmer_id)
+    return swimmer_to_swimmerout(swimmer)
 
 @app.delete("/swimmers/{swimmer_id}", status_code=204)
 def delete_swimmer(swimmer_id: int):

@@ -96,3 +96,7 @@ def test_get_of_deleted_swimmer_is_404_error():
 
     response = client.get(f"/swimmers/{swimmer_one_id}")
     assert response.status_code == 404
+
+def test_swimmer_does_not_have_ics():
+    swimmer_one = create_swimmer()
+    assert swimmer_one["has_schedule"] is False

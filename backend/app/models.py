@@ -24,6 +24,7 @@ class Swimmer:
     swimmer_id: int
     weights_group: WeightsGroup
     tags: set[str] = field(default_factory=set)
+    ics_data: bytes | None = None
 
 @dataclass
 class Practice:
@@ -42,8 +43,3 @@ class Practice:
 class Assignment:
     swimmer_id: int
     practice_id: int
-
-
-if __name__ == "__main__":
-
-    print("Success")

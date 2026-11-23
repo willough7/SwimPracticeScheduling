@@ -10,6 +10,7 @@ class SwimmerCreate(BaseModel):
 
 class SwimmerOut(SwimmerCreate):
     swimmer_id: int
+    has_schedule: bool
 
 class PracticeCreate(BaseModel):
     day: Day
