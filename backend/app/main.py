@@ -1,7 +1,8 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile
 from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut
 from app.storage import swimmers, _ids, practices, _practice_ids
 from app.models import Swimmer, Practice, Day
+from app.ics_parser import parse_calendar
 
 app = FastAPI(title="Swim Practice Scheduler")
 
@@ -43,6 +44,23 @@ def delete_swimmer(swimmer_id: int):
     if swimmers.get(swimmer_id) is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
     swimmers.pop(swimmer_id)
+
+@app.put("/swimmers/{swimmer_id}/schedule", response_model=SwimmerOut)
+async def upload_schedule(swimmer_id: int, file: UploadFile):
+    swimmer = swimmers.get(swimmer_id)
+    if(swimmer is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    ics = await file.read()
+
+    try:
+        parsed_ics = parse_calendar(ics)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="File is not a valid .ics calendar")
+
+    swimmer.ics_data = ics
+
+    return swimmer_to_swimmerout(swimmer)
 
 @app.post("/practices", status_code=201, response_model=PracticeOut)
 def create_practice(data: PracticeCreate):
