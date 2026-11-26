@@ -14,10 +14,13 @@ import recurring_ical_events
 LOCAL_TZ = ZoneInfo("America/Indiana/Indianapolis")
 
 
+def parse_calendar(data: bytes) -> icalendar.Calendar:
+    return icalendar.Calendar.from_ical(data)
+
 def load_calendar(path):
     """Read an .ics file from disk and parse it into a Calendar object."""
     with open(path, "rb") as f:
-        return icalendar.Calendar.from_ical(f.read())
+        return parse_calendar(f.read())
 
 
 def monday_of(day):
