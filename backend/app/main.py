@@ -1,9 +1,23 @@
-from fastapi import FastAPI, HTTPException
-from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut
+from fastapi import FastAPI, HTTPException, UploadFile
+from datetime import date
+from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut
 from app.storage import swimmers, _ids, practices, _practice_ids
 from app.models import Swimmer, Practice, Day
+from app.ics_parser import parse_calendar, monday_of
+from app.conflicts import get_swimmers_status_for_practice
 
 app = FastAPI(title="Swim Practice Scheduler")
+
+def swimmer_to_swimmerout(swimmer: Swimmer) -> SwimmerOut:
+    return SwimmerOut(
+        first_name=swimmer.first_name,
+        last_name=swimmer.last_name,
+        weights_group=swimmer.weights_group,
+        tags=swimmer.tags,
+        swimmer_id=swimmer.swimmer_id,
+        has_schedule=swimmer.ics_data is not None
+        )
+
 
 @app.get("/health")
 def health():
@@ -14,23 +28,41 @@ def create_swimmer(data: SwimmerCreate):
     new_id = next(_ids)
     swimmer = Swimmer(swimmer_id=new_id, **data.model_dump())
     swimmers[new_id] = swimmer
-    return swimmer
+    return swimmer_to_swimmerout(swimmer)
 
 @app.get("/swimmers", response_model=list[SwimmerOut])
 def get_swimmers():
-    return list(swimmers.values())
+    return [swimmer_to_swimmerout(s) for s in swimmers.values()]
 
 @app.get("/swimmers/{swimmer_id}", response_model=SwimmerOut)
 def get_swimmer(swimmer_id: int):
-    if swimmers.get(swimmer_id) is None:
+    swimmer = swimmers.get(swimmer_id)
+    if swimmer is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
-    return swimmers.get(swimmer_id)
+    return swimmer_to_swimmerout(swimmer)
 
 @app.delete("/swimmers/{swimmer_id}", status_code=204)
 def delete_swimmer(swimmer_id: int):
     if swimmers.get(swimmer_id) is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
     swimmers.pop(swimmer_id)
+
+@app.put("/swimmers/{swimmer_id}/schedule", response_model=SwimmerOut)
+async def upload_schedule(swimmer_id: int, file: UploadFile):
+    swimmer = swimmers.get(swimmer_id)
+    if(swimmer is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    ics = await file.read()
+
+    try:
+        parsed_ics = parse_calendar(ics)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="File is not a valid .ics calendar")
+
+    swimmer.ics_data = ics
+
+    return swimmer_to_swimmerout(swimmer)
 
 @app.post("/practices", status_code=201, response_model=PracticeOut)
 def create_practice(data: PracticeCreate):
@@ -56,3 +88,18 @@ def delete_practice(practice_id: int):
     if practices.get(practice_id) is None:
         raise HTTPException(status_code=404, detail="Practice not found")
     practices.pop(practice_id)
+
+@app.get("/practices/{practice_id}/conflicts", response_model=PracticeConflictsOut)
+def get_practice_conflicts(practice_id: int, week: date):
+    practice = practices.get(practice_id)
+    if (practice is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    result = get_swimmers_status_for_practice(practice=practice, day=week, swimmers=swimmers.values())
+    return PracticeConflictsOut(
+        practice_id=practice_id,
+        week_start=monday_of(week),
+        available=result.available,
+        conflict=result.conflict,
+        unknown=result.unknown,
+    )

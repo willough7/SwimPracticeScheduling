@@ -16,7 +16,10 @@ student data). sample_schedule.ics covers the week of Mon 2026-11-09:
 from datetime import date, datetime
 from pathlib import Path
 
-from app.ics_parser import LOCAL_TZ, busy_blocks_for_week, load_calendar, monday_of
+import pytest
+
+from app.ics_parser import (LOCAL_TZ, busy_blocks_for_week, load_calendar,
+                            monday_of, parse_calendar)
 from app.intervals import overlapChecker
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -50,6 +53,40 @@ def test_monday_of_sunday_goes_back_not_forward():
 
 def test_monday_of_crosses_month_boundary():
     assert monday_of(date(2026, 11, 1)) == date(2026, 10, 26)   # Sunday Nov 1
+
+
+# ---------- parse_calendar (raw bytes, like an upload) ----------
+
+def test_parse_calendar_matches_load_calendar():
+    # An upload arrives as bytes, not a path. Parsing the same file's bytes
+    # must give exactly the same blocks as loading it from disk.
+    data = (FIXTURES / "sample_schedule.ics").read_bytes()
+    from_bytes = busy_blocks_for_week(parse_calendar(data), WEEK_OF_NOV_9)
+    assert from_bytes == sample_week()
+
+
+def test_parse_calendar_rejects_text_that_is_not_a_calendar():
+    with pytest.raises(ValueError):
+        parse_calendar(b"not a calendar")
+
+
+def test_parse_calendar_rejects_empty_bytes():
+    # An empty upload (e.g. a 0-byte file) should be an error, not an empty calendar.
+    with pytest.raises(ValueError):
+        parse_calendar(b"")
+
+
+def test_parse_calendar_rejects_binary_garbage():
+    # Someone uploads a PDF or image instead of an .ics file.
+    with pytest.raises(ValueError):
+        parse_calendar(b"%PDF-1.4\x00\xff\xfe binary junk")
+
+
+def test_parse_calendar_accepts_calendar_with_no_events():
+    # A valid but empty calendar parses fine and just has no busy blocks.
+    # The upload route has to decide whether to accept this.
+    data = b"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nEND:VCALENDAR\r\n"
+    assert busy_blocks_for_week(parse_calendar(data), WEEK_OF_NOV_9) == []
 
 
 # ---------- busy_blocks_for_week ----------
