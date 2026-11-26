@@ -43,3 +43,9 @@ class Practice:
 class Assignment:
     swimmer_id: int
     practice_id: int
+
+@dataclass
+class SwimmerStatuses:
+    available: list[int]
+    conflict: list[int]
+    unknown: list[int]

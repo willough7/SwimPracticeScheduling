@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from datetime import time
+from datetime import time, date
 from app.models import WeightsGroup, Day
 
 class SwimmerCreate(BaseModel):
@@ -27,3 +27,10 @@ class PracticeCreate(BaseModel):
 
 class PracticeOut(PracticeCreate):
     practice_id: int
+
+class PracticeConflictsOut(BaseModel):
+    practice_id: int
+    week_start: date
+    available: list[int]
+    conflict: list[int]
+    unknown: list[int]

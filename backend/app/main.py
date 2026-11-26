@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException, UploadFile
-from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut
+from datetime import date
+from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut
 from app.storage import swimmers, _ids, practices, _practice_ids
 from app.models import Swimmer, Practice, Day
-from app.ics_parser import parse_calendar
+from app.ics_parser import parse_calendar, monday_of
+from app.conflicts import get_swimmers_status_for_practice
 
 app = FastAPI(title="Swim Practice Scheduler")
 
@@ -86,3 +88,18 @@ def delete_practice(practice_id: int):
     if practices.get(practice_id) is None:
         raise HTTPException(status_code=404, detail="Practice not found")
     practices.pop(practice_id)
+
+@app.get("/practices/{practice_id}/conflicts", response_model=PracticeConflictsOut)
+def get_practice_conflicts(practice_id: int, week: date):
+    practice = practices.get(practice_id)
+    if (practice is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    result = get_swimmers_status_for_practice(practice=practice, day=week, swimmers=swimmers.values())
+    return PracticeConflictsOut(
+        practice_id=practice_id,
+        week_start=monday_of(week),
+        available=result.available,
+        conflict=result.conflict,
+        unknown=result.unknown,
+    )
