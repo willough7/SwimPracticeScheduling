@@ -75,6 +75,22 @@ is rejected with 400 and never replaces a good one.
 | DELETE | `/practices/{practice_id}` | Delete a practice | 204 |
 | GET | `/practices/{practice_id}/conflicts?week=YYYY-MM-DD` | Which swimmers can make this practice in the given week | 200 |
 
+### Assignments
+| Method | Path | Does | Success |
+|---|---|---|---|
+| PUT | `/practices/{practice_id}/swimmers/{swimmer_id}` | Assign a swimmer to a practice | 204 |
+| DELETE | `/practices/{practice_id}/swimmers/{swimmer_id}` | Remove a swimmer from a practice | 204 |
+| GET | `/practices/{practice_id}/swimmers` | Swimmers assigned to a practice, sorted by id | 200 |
+| GET | `/swimmers/{swimmer_id}/practices` | Practices a swimmer is assigned to, sorted by id | 200 |
+
+- Assignments repeat every week; there are no per-week assignments yet.
+- The coach can assign any swimmer, including one whose classes conflict with
+  the practice. The conflict gray-out is a warning, not a rule.
+- Assigning a swimmer who is already assigned succeeds and changes nothing.
+  Removing a swimmer who isn't assigned returns 404
+  (`"Swimmer is not assigned to this practice"`), so frontend mistakes show up.
+- Deleting a swimmer or a practice also removes its assignments.
+
 ### Conflicts
 Practices repeat weekly ("Tuesday 1:30-3:00"), but class calendars have real
 dates, so the conflicts endpoint needs a `week`. Any date in the week works;
@@ -106,7 +122,7 @@ GET /practices/3/conflicts?week=2026-11-11
 | 201 Created | New resource created | Set with `status_code=201` on the route |
 | 204 No Content | Success, no response body (deletes) | Set with `status_code=204` on the route |
 | 400 Bad Request | The uploaded file isn't a valid `.ics` calendar | Raised in our code with `HTTPException` (`"File is not a valid .ics calendar"`) |
-| 404 Not Found | The requested item doesn't exist | Raised in our code with `HTTPException` (`"Swimmer not found"`, `"Practice not found"`). FastAPI also returns a plain `"Not Found"` for URLs with no matching route. |
+| 404 Not Found | The requested item doesn't exist | Raised in our code with `HTTPException` (`"Swimmer not found"`, `"Practice not found"`, `"Swimmer is not assigned to this practice"`). FastAPI also returns a plain `"Not Found"` for URLs with no matching route. |
 | 422 Unprocessable Entity | Request body, path, or query failed validation (e.g. a missing file or `?week=banana`) | Raised automatically by FastAPI/Pydantic; the route never runs |
 | 500 Internal Server Error | A bug: an unhandled exception in our code | Raised automatically; details appear in the server terminal, not the response |
 
@@ -126,5 +142,6 @@ pytest                           # run the test suite
 ## Status
 In active development. Done: .ics parsing, time-block merging and overlap
 detection, data models, and the API for swimmers, practices, calendar uploads,
-and per-practice conflict statuses (stored in memory for now), all covered by
-tests. Next: assignment endpoints, the React frontend, then the database.
+per-practice conflict statuses, and assigning swimmers to practices (stored in
+memory for now), all covered by tests. Next: the React frontend, then the
+database.

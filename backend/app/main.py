@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, UploadFile
 from datetime import date
 from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut
-from app.storage import swimmers, _ids, practices, _practice_ids
-from app.models import Swimmer, Practice, Day
+from app.storage import swimmers, _ids, practices, _practice_ids, assignments
+from app.models import Swimmer, Practice, Day, Assignment
 from app.ics_parser import parse_calendar, monday_of
 from app.conflicts import get_swimmers_status_for_practice
 
@@ -46,6 +46,8 @@ def delete_swimmer(swimmer_id: int):
     if swimmers.get(swimmer_id) is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
     swimmers.pop(swimmer_id)
+    # Remove this swimmer's assignments too, so none point at a swimmer that no longer exists.
+    assignments.difference_update({a for a in assignments if a.swimmer_id == swimmer_id})
 
 @app.put("/swimmers/{swimmer_id}/schedule", response_model=SwimmerOut)
 async def upload_schedule(swimmer_id: int, file: UploadFile):
@@ -88,6 +90,8 @@ def delete_practice(practice_id: int):
     if practices.get(practice_id) is None:
         raise HTTPException(status_code=404, detail="Practice not found")
     practices.pop(practice_id)
+    # Remove this practice's assignments too, so none point at a practice that no longer exists.
+    assignments.difference_update({a for a in assignments if a.practice_id == practice_id})
 
 @app.get("/practices/{practice_id}/conflicts", response_model=PracticeConflictsOut)
 def get_practice_conflicts(practice_id: int, week: date):
@@ -103,3 +107,52 @@ def get_practice_conflicts(practice_id: int, week: date):
         conflict=result.conflict,
         unknown=result.unknown,
     )
+
+#assignments
+
+# No conflict check on purpose: the coach can assign anyone,
+# the gray-out in the UI is only a warning.
+@app.put("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204)
+def make_practice_assignment(practice_id: int, swimmer_id: int):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+    if (swimmers.get(swimmer_id) is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+    
+    assignments.add(Assignment(swimmer_id=swimmer_id, practice_id=practice_id))
+
+
+@app.get("/practices/{practice_id}/swimmers", response_model=list[SwimmerOut])
+def get_practice_swimmers(practice_id: int):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    assigned = [swimmers[a.swimmer_id] for a in assignments if a.practice_id == practice_id]
+    assigned.sort(key=lambda swimmer: swimmer.swimmer_id)
+
+    return [swimmer_to_swimmerout(swimmer) for swimmer in assigned]
+
+
+@app.delete("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204)
+def remove_practice_assignment(practice_id: int, swimmer_id: int):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+    if (swimmers.get(swimmer_id) is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    assignment = Assignment(swimmer_id=swimmer_id, practice_id=practice_id)
+    if (assignment not in assignments):
+        raise HTTPException(status_code=404, detail="Swimmer is not assigned to this practice")
+
+    assignments.remove(assignment)
+
+
+@app.get("/swimmers/{swimmer_id}/practices", response_model=list[PracticeOut])
+def get_swimmer_practices(swimmer_id: int):
+    if (swimmers.get(swimmer_id) is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    assigned = [practices[a.practice_id] for a in assignments if a.swimmer_id == swimmer_id]
+    assigned.sort(key=lambda practice: practice.practice_id)
+
+    return assigned
