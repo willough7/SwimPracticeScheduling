@@ -8,6 +8,8 @@
 //   npm run seed                 (refuses if the backend already has data)
 //   npm run seed -- --reset      (deletes all swimmers and practices first)
 //
+// Creating swimmers and practices needs an admin login, so it asks for your
+// admin username and password (or reads ADMIN_USERNAME and ADMIN_PASSWORD).
 // The backend must be running. The data is the same every run, because the
 // random choices come from a fixed seed.
 
@@ -165,12 +167,33 @@ function makeCalendar(swimmerNumber) {
 
 // ---------- Sending it to the backend ----------
 
+// From the command line there's no browser to keep the login cookie, so seed()
+// logs in itself and sends the cookie on every request. In the browser this
+// stays empty: the browser already sends its own login cookie.
+let cookieHeader = null
+
+async function logIn(baseUrl, username, password) {
+  const response = await fetch(baseUrl + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!response.ok) {
+    throw new Error(`Admin login failed: ${(await response.json()).detail}`)
+  }
+  // "admin_session=abc...; HttpOnly; ..." -> "admin_session=abc..."
+  cookieHeader = response.headers.getSetCookie()[0].split(';')[0]
+}
+
 async function call(baseUrl, method, path, body) {
-  const options = { method }
+  const options = { method, headers: {} }
+  if (cookieHeader !== null) {
+    options.headers.Cookie = cookieHeader
+  }
   if (body instanceof FormData) {
     options.body = body
   } else if (body !== undefined) {
-    options.headers = { 'Content-Type': 'application/json' }
+    options.headers['Content-Type'] = 'application/json'
     options.body = JSON.stringify(body)
   }
   const response = await fetch(baseUrl + path, options)
@@ -180,8 +203,13 @@ async function call(baseUrl, method, path, body) {
   return response.status === 204 ? null : response.json()
 }
 
-// baseUrl: 'http://127.0.0.1:8000' from the command line, or '/api' in the browser
-export async function seed(baseUrl, { reset = false } = {}) {
+// baseUrl: 'http://127.0.0.1:8000' from the command line, or '/api' in the browser.
+// Pass username and password to log in first (the command line does); leave
+// them out in a browser where an admin is already logged in.
+export async function seed(baseUrl, { reset = false, username, password } = {}) {
+  if (username !== undefined) {
+    await logIn(baseUrl, username, password)
+  }
   const existingSwimmers = await call(baseUrl, 'GET', '/swimmers')
   const existingPractices = await call(baseUrl, 'GET', '/practices')
   const hasData = existingSwimmers.length > 0 || existingPractices.length > 0
@@ -226,7 +254,13 @@ export async function seed(baseUrl, { reset = false } = {}) {
 // when a browser imports this file.
 if (typeof window === 'undefined') {
   const reset = process.argv.includes('--reset')
-  seed('http://127.0.0.1:8000', { reset })
+  const { createInterface } = await import('node:readline/promises')
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  const username = process.env.ADMIN_USERNAME ?? (await prompt.question('Admin username: '))
+  // Note: typed passwords show on screen here; set ADMIN_PASSWORD to avoid that
+  const password = process.env.ADMIN_PASSWORD ?? (await prompt.question('Admin password: '))
+  prompt.close()
+  seed('http://127.0.0.1:8000', { reset, username, password })
     .then((summary) => {
       console.log(
         `Added ${summary.practices} practices and ${summary.swimmers} swimmers ` +

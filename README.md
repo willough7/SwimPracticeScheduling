@@ -47,6 +47,53 @@ backend/
     fixtures/       # small made-up .ics calendars (real ones hold student data)
 ```
 
+## Admin login
+Admins log in to create and edit; everyone else uses the app without an
+account. Swimmers can open their own card and upload their class calendar
+without logging in (a deliberate trade-off: anyone could replace any
+swimmer's calendar, which is acceptable for a team-sized app).
+
+| Who | Can |
+|---|---|
+| Anyone | View everything, export/print, upload a swimmer's `.ics` calendar |
+| Logged-in admin | Also create, edit, and delete swimmers and practices, assign swimmers, and arrange lanes |
+
+The backend enforces this: every create/edit/delete/assign/lane route answers
+`401 "Admin login required"` without an admin session, whatever the frontend shows.
+
+### Managing admin accounts
+Accounts can only be made on the server, never from the website. From the
+`backend` folder:
+
+```bash
+python -m app.manage_admins add <username>      # create, or change the password
+python -m app.manage_admins remove <username>
+python -m app.manage_admins list
+```
+
+Run these from the `backend` folder with the virtual environment active.
+`<username>` is a placeholder: type the name itself, without the angle brackets
+(`python -m app.manage_admins add austin`). In Git Bash the password shows as
+you type it; in PowerShell or Command Prompt it's hidden.
+
+Accounts are saved in `backend/admins.json` (git-ignored). Passwords are stored
+only as salted scrypt hashes, and must be at least 10 characters.
+
+### How logins work
+- `POST /auth/login` with `{"username", "password"}` sets an `admin_session`
+  cookie: `HttpOnly` (page scripts can't read it), `Secure` (HTTPS only;
+  browsers allow `localhost` too), and `SameSite=Strict` (never sent with
+  requests started by other websites). A login lasts 12 hours.
+- `POST /auth/logout` ends it; `GET /auth/me` returns `{"username": ...}`, or `null`.
+- Sessions are kept in memory, so restarting the backend logs everyone out.
+- Wrong username and wrong password get the same `401 "Wrong username or password"`.
+- There is no lockout after wrong passwords. This is a deliberate trade-off
+  (a lockout lets anyone who knows an admin's username lock them out); it means
+  someone could keep guessing, so admin passwords should be long and not reused
+  from other sites.
+- When hosted online the site **must** be served over HTTPS, or the `Secure`
+  cookie won't be sent and admins can't stay logged in.
+
 ## API
 Interactive docs are generated automatically at `/docs` while the server is
 running. Endpoints follow REST conventions: plural nouns name collections,
@@ -134,6 +181,7 @@ GET /practices/3/conflicts?week=2026-11-11
 | 201 Created | New resource created | Set with `status_code=201` on the route |
 | 204 No Content | Success, no response body (deletes) | Set with `status_code=204` on the route |
 | 400 Bad Request | The uploaded file isn't a valid `.ics` calendar | Raised in our code with `HTTPException` (`"File is not a valid .ics calendar"`) |
+| 401 Unauthorized | Not logged in as an admin, or wrong login details | Raised by `require_admin` (`"Admin login required"`) and by `/auth/login` |
 | 404 Not Found | The requested item doesn't exist | Raised in our code with `HTTPException` (`"Swimmer not found"`, `"Practice not found"`, `"Swimmer is not assigned to this practice"`). FastAPI also returns a plain `"Not Found"` for URLs with no matching route. |
 | 422 Unprocessable Entity | Request body, path, or query failed validation (e.g. a missing file or `?week=banana`) | Raised automatically by FastAPI/Pydantic; the route never runs |
 | 500 Internal Server Error | A bug: an unhandled exception in our code | Raised automatically; details appear in the server terminal, not the response |

@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Admin accounts (usernames and password hashes): one per server, never shared
+admins.json
+
 # Real calendar files contain student data
 *.ics
 !backend/tests/fixtures/*.ics

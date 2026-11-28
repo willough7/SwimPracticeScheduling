@@ -7,11 +7,12 @@ type SwimmerDetailsProps = {
   swimmer: Swimmer
   onUpdated: (swimmer: Swimmer) => void
   onDeleted: (swimmerId: number) => void
+  canEdit: boolean // only admins can edit or delete; anyone can upload a calendar
   onEdit: () => void
 }
 
 // Shown in a Modal when the coach clicks a swimmer while no practice is selected.
-function SwimmerDetails({ swimmer, onUpdated, onDeleted, onEdit }: SwimmerDetailsProps) {
+function SwimmerDetails({ swimmer, onUpdated, onDeleted, canEdit, onEdit }: SwimmerDetailsProps) {
   const [calendarFile, setCalendarFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -86,14 +87,16 @@ function SwimmerDetails({ swimmer, onUpdated, onDeleted, onEdit }: SwimmerDetail
       {message && <p className="form-success">{message}</p>}
       {error && <p className="form-error">{error}</p>}
 
-      <div className="form-actions">
-        <button type="button" className="button danger" disabled={busy} onClick={handleDelete}>
-          Delete swimmer
-        </button>
-        <button type="button" className="button" disabled={busy} onClick={onEdit}>
-          Edit details
-        </button>
-      </div>
+      {canEdit && (
+        <div className="form-actions">
+          <button type="button" className="button danger" disabled={busy} onClick={handleDelete}>
+            Delete swimmer
+          </button>
+          <button type="button" className="button" disabled={busy} onClick={onEdit}>
+            Edit details
+          </button>
+        </div>
+      )}
     </div>
   )
 }

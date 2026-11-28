@@ -10,6 +10,7 @@ type LanesViewProps = {
   assignedSwimmers: Swimmer[]
   lanes: Map<number, number> | null // swimmer_id -> lane; null while loading
   statuses: Map<number, SwimmerStatus> | null
+  canEdit: boolean // only admins can drag swimmers around
   pendingIds: Set<number> // swimmers with a request in flight
   onMove: (swimmerId: number, lane: number | null) => void
   onSwimmerContextMenu: (swimmerId: number, x: number, y: number) => void
@@ -25,6 +26,7 @@ function LanesView({
   assignedSwimmers,
   lanes,
   statuses,
+  canEdit,
   pendingIds,
   onMove,
   onSwimmerContextMenu,
@@ -38,7 +40,7 @@ function LanesView({
   const placedCount = lanes === null ? 0 : lanes.size
 
   function handleDragOver(event: DragEvent<HTMLDivElement>, lane: number) {
-    if (isSwimmerDrag(event)) {
+    if (canEdit && isSwimmerDrag(event)) {
       event.preventDefault() // this is what allows dropping here
       event.dataTransfer.dropEffect = 'move'
       setDragOverLane(lane)
@@ -69,14 +71,18 @@ function LanesView({
         summary={`${placedCount} of ${assignedSwimmers.length} assigned swimmers in a lane`}
       >
         <button className="button" onClick={onBack}>
-          Back to assigning
+          {canEdit ? 'Back to assigning' : 'Back'}
         </button>
-        <button className="button" onClick={onEdit}>
-          Edit
-        </button>
-        <button className="button danger" onClick={onDelete}>
-          Delete
-        </button>
+        {canEdit && (
+          <>
+            <button className="button" onClick={onEdit}>
+              Edit
+            </button>
+            <button className="button danger" onClick={onDelete}>
+              Delete
+            </button>
+          </>
+        )}
       </PracticeHeader>
 
       {lanes === null ? (
@@ -100,10 +106,12 @@ function LanesView({
                   <span className="lane-count">{inLane.length}</span>
                 </div>
                 <div className="lane-swimmers">
-                  {inLane.length === 0 && <span className="lane-empty">Drop swimmers here</span>}
+                  {inLane.length === 0 && canEdit && (
+                    <span className="lane-empty">Drop swimmers here</span>
+                  )}
                   {inLane.map((swimmer) => {
                     const status = statuses?.get(swimmer.swimmer_id)
-                    const classNames = ['swimmer-chip', 'draggable']
+                    const classNames = canEdit ? ['swimmer-chip', 'draggable'] : ['swimmer-chip']
                     if (status) {
                       classNames.push(status)
                     }
@@ -111,7 +119,7 @@ function LanesView({
                       <span
                         key={swimmer.swimmer_id}
                         className={classNames.join(' ')}
-                        draggable={!pendingIds.has(swimmer.swimmer_id)}
+                        draggable={canEdit && !pendingIds.has(swimmer.swimmer_id)}
                         tabIndex={0}
                         onDragStart={(event) => startSwimmerDrag(event, swimmer.swimmer_id)}
                         onDragEnd={() => setDragOverLane(null)}

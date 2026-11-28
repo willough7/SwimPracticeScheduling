@@ -44,3 +44,11 @@ class LaneUpdate(BaseModel):
 class LanePlacementOut(BaseModel):
     swimmer_id: int
     lane: int
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AdminOut(BaseModel):
+    # None when nobody is logged in
+    username: str | None

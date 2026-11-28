@@ -21,6 +21,7 @@ const STATUS_ORDER: Record<SwimmerStatus, number> = {
 type SwimmerPanelProps = {
   title: string
   mode: PanelMode
+  canEdit: boolean // only admins can add swimmers, assign, or drag into lanes
   swimmers: Swimmer[] // the swimmers to show: everyone, or (in lanes mode) those not in a lane
   statuses: Map<number, SwimmerStatus> | null // null when no practice is selected
   assignedIds: Set<number> | null // who is assigned to the selected practice
@@ -34,6 +35,7 @@ type SwimmerPanelProps = {
 function SwimmerPanel({
   title,
   mode,
+  canEdit,
   swimmers,
   statuses,
   assignedIds,
@@ -123,7 +125,7 @@ function SwimmerPanel({
   // takes them out of their lane. preventDefault() in dragover is what tells
   // the browser "dropping is allowed here".
   function handleDragOver(event: DragEvent<HTMLDivElement>) {
-    if (mode === 'lanes' && isSwimmerDrag(event)) {
+    if (canEdit && mode === 'lanes' && isSwimmerDrag(event)) {
       event.preventDefault()
       event.dataTransfer.dropEffect = 'move'
       setDragOver(true)
@@ -157,9 +159,11 @@ function SwimmerPanel({
 
       <div className="panel-header">
         <h2>{title}</h2>
-        <button className="button" onClick={onAddSwimmer}>
-          + Swimmer
-        </button>
+        {canEdit && (
+          <button className="button" onClick={onAddSwimmer}>
+            + Swimmer
+          </button>
+        )}
         <input
           type="search"
           className="swimmer-search"
@@ -210,7 +214,9 @@ function SwimmerPanel({
         {swimmers.length === 0 && (
           <p>
             {mode === 'lanes'
-              ? 'Every assigned swimmer is in a lane. Drag one here to take them out.'
+              ? canEdit
+                ? 'Every assigned swimmer is in a lane. Drag one here to take them out.'
+                : 'Every assigned swimmer is in a lane.'
               : 'No swimmers yet.'}
           </p>
         )}
@@ -223,6 +229,7 @@ function SwimmerPanel({
               key={swimmer.swimmer_id}
               swimmer={swimmer}
               mode={mode}
+              canEdit={canEdit}
               status={statuses?.get(swimmer.swimmer_id)}
               assigned={assignedIds?.has(swimmer.swimmer_id) ?? false}
               disabled={pendingIds.has(swimmer.swimmer_id)}

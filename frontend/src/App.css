@@ -877,3 +877,14 @@ a.button {
     background: #e6e6ea;
   }
 }
+
+/* "username  [Log out]" in the top bar */
+.signed-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  color: var(--text-h);
+  font-size: 14px;
+}

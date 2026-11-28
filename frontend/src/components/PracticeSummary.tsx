@@ -5,6 +5,7 @@ type PracticeSummaryProps = {
   practice: Practice
   assignedSwimmers: Swimmer[]
   statuses: Map<number, SwimmerStatus> | null // null while the conflict check is loading
+  canEdit: boolean
   onOpenLanes: () => void
   onEdit: () => void
   onDelete: () => void
@@ -16,6 +17,7 @@ function PracticeSummary({
   practice,
   assignedSwimmers,
   statuses,
+  canEdit,
   onOpenLanes,
   onEdit,
   onDelete,
@@ -41,12 +43,16 @@ function PracticeSummary({
         <button className="button primary" onClick={onOpenLanes}>
           Open lanes
         </button>
-        <button className="button" onClick={onEdit}>
-          Edit
-        </button>
-        <button className="button danger" onClick={onDelete}>
-          Delete
-        </button>
+        {canEdit && (
+          <>
+            <button className="button" onClick={onEdit}>
+              Edit
+            </button>
+            <button className="button danger" onClick={onDelete}>
+              Delete
+            </button>
+          </>
+        )}
       </PracticeHeader>
 
       <h3 className="detail-subheading">
@@ -54,8 +60,9 @@ function PracticeSummary({
       </h3>
       {assignedSwimmers.length === 0 ? (
         <p className="detail-hint">
-          No one yet. Click swimmers in the panel below to assign them, then double-click the
-          practice (or press Open lanes) to arrange lanes.
+          {canEdit
+            ? 'No one yet. Click swimmers in the panel below to assign them, then double-click the practice (or press Open lanes) to arrange lanes.'
+            : 'No one is assigned to this practice yet.'}
         </p>
       ) : (
         <div className="swimmer-chips">

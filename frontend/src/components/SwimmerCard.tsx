@@ -12,6 +12,7 @@ const STATUS_LABELS: Record<SwimmerStatus, string> = {
 type SwimmerCardProps = {
   swimmer: Swimmer
   mode: PanelMode
+  canEdit: boolean
   status?: SwimmerStatus // only set while a practice is selected
   assigned: boolean // assigned to the selected practice
   disabled: boolean // a request for this swimmer is in flight
@@ -22,6 +23,7 @@ type SwimmerCardProps = {
 function SwimmerCard({
   swimmer,
   mode,
+  canEdit,
   status,
   assigned,
   disabled,
@@ -69,7 +71,7 @@ function SwimmerCard({
 
   // In lanes mode the card is something to drag, not to click. It's a <div>
   // rather than a <button> because some browsers (Firefox) won't drag buttons.
-  if (mode === 'lanes') {
+  if (mode === 'lanes' && canEdit) {
     return (
       <div
         className={`${classNames.join(' ')} draggable`}
@@ -90,7 +92,7 @@ function SwimmerCard({
     <button
       className={classNames.join(' ')}
       disabled={disabled}
-      aria-pressed={mode === 'assign' ? assigned : undefined}
+      aria-pressed={mode === 'assign' && canEdit ? assigned : undefined}
       onClick={onClick}
       onContextMenu={handleContextMenu}
     >

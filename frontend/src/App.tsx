@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  ApiError,
   assignSwimmer,
   deletePractice,
   deleteSwimmer,
@@ -7,8 +8,10 @@ import {
   getPracticeConflicts,
   getPracticeLanes,
   getPractices,
+  getCurrentAdmin,
   getPracticeSwimmers,
   getSwimmers,
+  logout,
   setSwimmerLane,
   unassignSwimmer,
   weekExportUrl,
@@ -17,6 +20,7 @@ import ContextMenu from './components/ContextMenu'
 import type { MenuItem } from './components/ContextMenu'
 import DayTabs from './components/DayTabs'
 import LanesView from './components/LanesView'
+import LoginForm from './components/LoginForm'
 import Modal from './components/Modal'
 import PracticeForm from './components/PracticeForm'
 import PracticeSummary from './components/PracticeSummary'
@@ -38,6 +42,7 @@ type DialogState =
   | { kind: 'swimmer'; swimmerId: number }
   | { kind: 'edit-swimmer'; swimmerId: number }
   | { kind: 'edit-practice'; practiceId: number }
+  | { kind: 'login' }
   | null
 
 // An open right-click menu: where it is and what's in it
@@ -66,6 +71,8 @@ function toStatusMap(conflicts: PracticeConflicts): Map<number, SwimmerStatus> {
 }
 
 function App() {
+  // The logged-in admin's username, or null for everyone else (view-only)
+  const [admin, setAdmin] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<Day>(today())
   const [practices, setPractices] = useState<Practice[]>([])
   const [selectedPracticeId, setSelectedPracticeId] = useState<number | null>(null)
@@ -93,6 +100,25 @@ function App() {
     day: Day
     lanes: Map<number, Map<number, number>>
   } | null>(null)
+
+  // Only admins can create, edit, assign, or move swimmers between lanes.
+  // Hiding the controls is just for a clean screen: the backend refuses
+  // those requests from anyone not logged in, whatever the page shows.
+  const canEdit = admin !== null
+
+  // Ask the backend whether this browser is logged in, once, when the page opens.
+  // (The login cookie can't be read from JavaScript, so this is the only way to know.)
+  useEffect(() => {
+    async function loadAdmin() {
+      try {
+        setAdmin((await getCurrentAdmin()).username)
+      } catch (err) {
+        setError(errorMessage(err))
+      }
+    }
+
+    loadAdmin()
+  }, [])
 
   // Load the roster once, when the page opens.
   useEffect(() => {
@@ -304,7 +330,7 @@ function App() {
         removeFromLanes(swimmerId) // the backend dropped their lane spot too
       }
     } catch (err) {
-      setError(errorMessage(err))
+      handleError(err)
     } finally {
       setPendingSwimmerIds((current) => {
         const next = new Set(current)
@@ -316,6 +342,27 @@ function App() {
 
   // With a practice selected, clicking a swimmer assigns or unassigns them.
   // Without one, it opens their details so the coach can upload a calendar.
+  // Errors from changing things. A 401 means the admin's login ran out (or the
+  // server restarted), so switch to view-only and say why.
+  function handleError(err: unknown) {
+    if (err instanceof ApiError && err.status === 401) {
+      setAdmin(null)
+      setError('Your admin login has ended. Log in again to make changes.')
+    } else {
+      setError(errorMessage(err))
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await logout()
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+    setAdmin(null)
+    setPracticeView('assign') // lanes can't be edited any more
+  }
+
   // Puts a swimmer in a lane (1-8), or takes them out of their lane (null).
   // Like assigning, the screen changes once the backend confirms.
   async function handleMoveToLane(swimmerId: number, lane: number | null) {
@@ -343,7 +390,7 @@ function App() {
         return { practiceId, lanes: next }
       })
     } catch (err) {
-      setError(errorMessage(err))
+      handleError(err)
     } finally {
       setPendingSwimmerIds((current) => {
         const next = new Set(current)
@@ -368,7 +415,10 @@ function App() {
   // details when no practice is selected, and does nothing in lanes mode
   // (there, cards are dragged instead).
   function handleSwimmerClick(swimmerId: number) {
-    if (mode === 'assign') {
+    if (!canEdit) {
+      // Anyone can open a swimmer's card to upload their calendar
+      setDialog({ kind: 'swimmer', swimmerId })
+    } else if (mode === 'assign') {
       handleToggleAssignment(swimmerId)
     } else if (mode === 'browse') {
       setDialog({ kind: 'swimmer', swimmerId })
@@ -462,7 +512,7 @@ function App() {
       })
       setSelectedPracticeId((current) => (current === practiceId ? null : current))
     } catch (err) {
-      setError(errorMessage(err))
+      handleError(err)
     }
   }
 
@@ -479,7 +529,7 @@ function App() {
       await deleteSwimmer(swimmerId)
       handleSwimmerDeleted(swimmerId)
     } catch (err) {
-      setError(errorMessage(err))
+      handleError(err)
     }
   }
 
@@ -494,8 +544,12 @@ function App() {
       y,
       items: [
         { label: 'Open lanes', onSelect: () => handleOpenLanes(practiceId) },
-        { label: 'Edit practice', onSelect: () => setDialog({ kind: 'edit-practice', practiceId }) },
-        { label: 'Delete practice', danger: true, onSelect: () => handleDeletePractice(practiceId) },
+        ...(canEdit
+          ? [
+              { label: 'Edit practice', onSelect: () => setDialog({ kind: 'edit-practice', practiceId }) },
+              { label: 'Delete practice', danger: true, onSelect: () => handleDeletePractice(practiceId) },
+            ]
+          : []),
       ],
     })
   }
@@ -504,7 +558,7 @@ function App() {
     // In lanes mode the menu can also move the swimmer, so lanes work
     // without dragging (for the keyboard, or a trackpad that makes dragging awkward)
     const laneItems: MenuItem[] = []
-    if (mode === 'lanes' && lanesForSelected !== null) {
+    if (canEdit && mode === 'lanes' && lanesForSelected !== null) {
       const currentLane = lanesForSelected.get(swimmerId) ?? null
       for (const lane of LANES) {
         if (lane !== currentLane) {
@@ -519,12 +573,14 @@ function App() {
     setContextMenu({
       x,
       y,
-      items: [
-        ...laneItems,
-        { label: 'Edit swimmer', onSelect: () => setDialog({ kind: 'edit-swimmer', swimmerId }) },
-        { label: 'Class calendar…', onSelect: () => setDialog({ kind: 'swimmer', swimmerId }) },
-        { label: 'Delete swimmer', danger: true, onSelect: () => handleDeleteSwimmer(swimmerId) },
-      ],
+      items: canEdit
+        ? [
+            ...laneItems,
+            { label: 'Edit swimmer', onSelect: () => setDialog({ kind: 'edit-swimmer', swimmerId }) },
+            { label: 'Class calendar…', onSelect: () => setDialog({ kind: 'swimmer', swimmerId }) },
+            { label: 'Delete swimmer', danger: true, onSelect: () => handleDeleteSwimmer(swimmerId) },
+          ]
+        : [{ label: 'Class calendar…', onSelect: () => setDialog({ kind: 'swimmer', swimmerId }) }],
     })
   }
 
@@ -543,7 +599,7 @@ function App() {
       )
       setPrintJob({ day: selectedDay, lanes })
     } catch (err) {
-      setError(errorMessage(err))
+      handleError(err)
     }
   }
 
@@ -591,20 +647,36 @@ function App() {
           <a className="button" href={weekExportUrl(selectedDay)} download>
             Export Excel
           </a>
-          <button
-            className="button"
-            disabled={selectedPractice === null}
-            title={selectedPractice === null ? 'Select a practice to edit it' : undefined}
-            onClick={() =>
-              selectedPractice !== null &&
-              setDialog({ kind: 'edit-practice', practiceId: selectedPractice.practice_id })
-            }
-          >
-            Edit practice
-          </button>
-          <button className="button" onClick={() => setDialog({ kind: 'add-practice' })}>
-            + Practice
-          </button>
+          {canEdit && (
+            <>
+              <button
+                className="button"
+                disabled={selectedPractice === null}
+                title={selectedPractice === null ? 'Select a practice to edit it' : undefined}
+                onClick={() =>
+                  selectedPractice !== null &&
+                  setDialog({ kind: 'edit-practice', practiceId: selectedPractice.practice_id })
+                }
+              >
+                Edit practice
+              </button>
+              <button className="button" onClick={() => setDialog({ kind: 'add-practice' })}>
+                + Practice
+              </button>
+            </>
+          )}
+          {canEdit ? (
+            <span className="signed-in">
+              {admin}
+              <button className="button small" onClick={handleLogout}>
+                Log out
+              </button>
+            </span>
+          ) : (
+            <button className="button" onClick={() => setDialog({ kind: 'login' })}>
+              Admin login
+            </button>
+          )}
         </div>
       </div>
 
@@ -633,8 +705,17 @@ function App() {
         <div className="detail-area">
           {selectedPractice === null && (
             <div className="detail-empty">
-              <p>Select a practice to see who can make it and assign swimmers.</p>
-              <p>Double-click a practice to arrange its lanes.</p>
+              {canEdit ? (
+                <>
+                  <p>Select a practice to see who can make it and assign swimmers.</p>
+                  <p>Double-click a practice to arrange its lanes.</p>
+                </>
+              ) : (
+                <>
+                  <p>Select a practice to see who's in it.</p>
+                  <p>Double-click a practice to see its lanes.</p>
+                </>
+              )}
             </div>
           )}
 
@@ -643,6 +724,7 @@ function App() {
               practice={selectedPractice}
               assignedSwimmers={assignedSwimmers}
               statuses={statuses}
+              canEdit={canEdit}
               onOpenLanes={() => handleOpenLanes(selectedPractice.practice_id)}
               onEdit={() =>
                 setDialog({ kind: 'edit-practice', practiceId: selectedPractice.practice_id })
@@ -657,6 +739,7 @@ function App() {
               assignedSwimmers={assignedSwimmers}
               lanes={lanesForSelected}
               statuses={statuses}
+              canEdit={canEdit}
               pendingIds={pendingSwimmerIds}
               onMove={handleMoveToLane}
               onSwimmerContextMenu={handleSwimmerContextMenu}
@@ -673,6 +756,7 @@ function App() {
       <SwimmerPanel
         title={mode === 'lanes' ? 'Not in a lane' : 'Swimmers'}
         mode={mode}
+        canEdit={canEdit}
         swimmers={panelSwimmers}
         statuses={statuses}
         assignedIds={assignedToSelected}
@@ -727,7 +811,21 @@ function App() {
             swimmer={dialogSwimmer}
             onUpdated={handleSwimmerUpdated}
             onDeleted={handleSwimmerDeleted}
+            canEdit={canEdit}
             onEdit={() => setDialog({ kind: 'edit-swimmer', swimmerId: dialogSwimmer.swimmer_id })}
+          />
+        </Modal>
+      )}
+
+      {dialog?.kind === 'login' && (
+        <Modal title="Admin login" onClose={closeDialog}>
+          <LoginForm
+            onLoggedIn={(username) => {
+              setAdmin(username)
+              setError(null)
+              setDialog(null)
+            }}
+            onCancel={closeDialog}
           />
         </Modal>
       )}

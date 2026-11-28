@@ -27,7 +27,7 @@ export class ApiError extends Error {
   }
 }
 
-// Turns anything caught in a catch block into a message to show the coach.
+// Turns anything caught in a catch block into a message to show the user.
 // (JavaScript lets you throw anything, so a caught value isn't always an Error.)
 export function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -156,4 +156,22 @@ export function setSwimmerLane(practiceId: number, swimmerId: number, lane: numb
     `/practices/${practiceId}/swimmers/${swimmerId}/lane`,
     jsonBody('PUT', { lane }),
   )
+}
+
+// Admin login. The backend keeps the login in an HttpOnly cookie, which the
+// browser sends with every request by itself, so nothing here stores it.
+
+type AdminResponse = { username: string | null }
+
+// Who is logged in: a username, or null for everyone who isn't an admin
+export function getCurrentAdmin() {
+  return request<AdminResponse>('/auth/me')
+}
+
+export function login(username: string, password: string) {
+  return request<AdminResponse>('/auth/login', jsonBody('POST', { username, password }))
+}
+
+export function logout() {
+  return request<void>('/auth/logout', { method: 'POST' })
 }
