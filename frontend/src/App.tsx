@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getPractices, getSwimmers } from './api'
+import { getPracticeConflicts, getPractices, getSwimmers } from './api'
 import DayTabs from './components/DayTabs'
 import ScheduleView from './components/ScheduleView'
 import SwimmerPanel from './components/SwimmerPanel'
-import type { Day, Practice, Swimmer } from './types'
+import { toDateString } from './time'
+import type { Day, Practice, PracticeConflicts, Swimmer, SwimmerStatus } from './types'
 import './App.css'
 
 // JavaScript's getDay() is 0 = Sunday ... 6 = Saturday.
@@ -17,10 +18,26 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
+// Turns the endpoint's three id lists into one lookup: swimmer_id -> status
+function toStatusMap(conflicts: PracticeConflicts): Map<number, SwimmerStatus> {
+  const statuses = new Map<number, SwimmerStatus>()
+  for (const id of conflicts.available) {
+    statuses.set(id, 'available')
+  }
+  for (const id of conflicts.conflict) {
+    statuses.set(id, 'conflict')
+  }
+  for (const id of conflicts.unknown) {
+    statuses.set(id, 'unknown')
+  }
+  return statuses
+}
+
 function App() {
   const [selectedDay, setSelectedDay] = useState<Day>(today())
   const [practices, setPractices] = useState<Practice[]>([])
   const [selectedPracticeId, setSelectedPracticeId] = useState<number | null>(null)
+  const [conflicts, setConflicts] = useState<PracticeConflicts | null>(null)
   const [swimmers, setSwimmers] = useState<Swimmer[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -62,6 +79,45 @@ function App() {
     }
   }, [selectedDay])
 
+  // Ask the backend who can make the selected practice, whenever the selection changes.
+  useEffect(() => {
+    if (selectedPracticeId === null) {
+      return
+    }
+    let ignore = false // same race-condition guard as the practices effect
+
+    async function loadConflicts(practiceId: number) {
+      try {
+        // Any date in the week works; the backend rounds it back to Monday.
+        // For now that's always the current week.
+        const result = await getPracticeConflicts(practiceId, toDateString(new Date()))
+        if (!ignore) {
+          setConflicts(result)
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(errorMessage(err))
+        }
+      }
+    }
+
+    loadConflicts(selectedPracticeId)
+    return () => {
+      ignore = true
+    }
+  }, [selectedPracticeId])
+
+  const selectedPractice =
+    practices.find((practice) => practice.practice_id === selectedPracticeId) ?? null
+
+  // Only use conflict results that belong to the practice selected right now.
+  // Just after a click, `conflicts` still holds the previous practice's results
+  // until the new ones arrive, and those must not be shown.
+  const statuses =
+    conflicts !== null && conflicts.practice_id === selectedPracticeId
+      ? toStatusMap(conflicts)
+      : null
+
   function handleSelectDay(day: Day) {
     setSelectedDay(day)
     setSelectedPracticeId(null) // a selected practice belongs to the old day
@@ -84,7 +140,11 @@ function App() {
         onSelectPractice={handleSelectPractice}
       />
 
-      <SwimmerPanel swimmers={swimmers} />
+      <SwimmerPanel
+        swimmers={swimmers}
+        statuses={statuses}
+        selectedPractice={selectedPractice}
+      />
     </div>
   )
 }

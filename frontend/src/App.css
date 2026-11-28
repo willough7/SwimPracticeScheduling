@@ -205,7 +205,7 @@
 .swimmer-grid {
   display: grid;
   /* as many 200px-or-wider columns as fit; cards stretch to fill the row */
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(225px, 1fr));
   gap: 8px;
 }
 
@@ -213,6 +213,7 @@
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
+  transition: opacity 0.15s; /* fade instead of snapping when a practice is picked */
 }
 
 .swimmer-name {
@@ -222,9 +223,11 @@
 
 .swimmer-details {
   display: flex;
+  flex-wrap: wrap; /* if a card is ever too narrow, the badge moves down whole */
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
+  white-space: nowrap; /* never break "3-day A" or "Class conflict" in the middle */
 }
 
 .swimmer-tags {
@@ -241,7 +244,42 @@
   font-size: 12px;
 }
 
-.badge.warning {
+/* Availability for the selected practice */
+
+.availability-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-bg);
+  font-size: 13px;
+}
+
+.swimmer-card.available {
+  border-color: #2f9e5b;
+}
+
+.swimmer-card.unknown {
+  border-style: dashed;
+}
+
+.swimmer-card.conflict {
+  opacity: 0.4; /* the gray-out: still visible and clickable, just faded */
+}
+
+.badge.status-available {
+  background: #d6f5e1;
+  color: #1d6b3d;
+}
+
+.badge.status-conflict {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.badge.status-unknown {
   background: #fdf2d0;
   color: #7a5200;
 }

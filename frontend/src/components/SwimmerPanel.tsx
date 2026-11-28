@@ -1,17 +1,27 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
-import type { Swimmer } from '../types'
+import { formatTime, toMinutes } from '../time'
+import type { Practice, Swimmer, SwimmerStatus } from '../types'
 import SwimmerCard from './SwimmerCard'
 
 const MIN_PANEL_HEIGHT = 120 // enough for the header and one row of cards
 const MIN_SCHEDULE_HEIGHT = 150 // never let the panel cover the whole schedule
 const DEFAULT_PANEL_HEIGHT = 280
 
-type SwimmerPanelProps = {
-  swimmers: Swimmer[]
+// When a practice is selected: available swimmers first, conflicts last
+const STATUS_ORDER: Record<SwimmerStatus, number> = {
+  available: 0,
+  unknown: 1,
+  conflict: 2,
 }
 
-function SwimmerPanel({ swimmers }: SwimmerPanelProps) {
+type SwimmerPanelProps = {
+  swimmers: Swimmer[]
+  statuses: Map<number, SwimmerStatus> | null // null when no practice is selected
+  selectedPractice: Practice | null
+}
+
+function SwimmerPanel({ swimmers, statuses, selectedPractice }: SwimmerPanelProps) {
   const [height, setHeight] = useState(DEFAULT_PANEL_HEIGHT)
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -30,6 +40,25 @@ function SwimmerPanel({ swimmers }: SwimmerPanelProps) {
     const hasAllTags = selectedTags.every((tag) => swimmer.tags.includes(tag))
     return matchesSearch && hasAllTags
   })
+
+  // .sort() is stable, so swimmers with the same status keep their original order.
+  // A swimmer missing from statuses (e.g. added after the check) sorts with unknown.
+  const sortedSwimmers =
+    statuses === null
+      ? visibleSwimmers
+      : [...visibleSwimmers].sort(
+          (a, b) =>
+            STATUS_ORDER[statuses.get(a.swimmer_id) ?? 'unknown'] -
+            STATUS_ORDER[statuses.get(b.swimmer_id) ?? 'unknown'],
+        )
+
+  // How many swimmers are in each group for the selected practice (ignoring filters)
+  const statusCounts = { available: 0, conflict: 0, unknown: 0 }
+  if (statuses !== null) {
+    for (const status of statuses.values()) {
+      statusCounts[status] += 1
+    }
+  }
 
   function toggleTag(tag: string) {
     setSelectedTags((current) =>
@@ -101,14 +130,36 @@ function SwimmerPanel({ swimmers }: SwimmerPanelProps) {
         )}
       </div>
 
+      {selectedPractice !== null && (
+        <div className="availability-bar">
+          <span>
+            Availability for <strong>{selectedPractice.practice_title}</strong>,{' '}
+            {formatTime(toMinutes(selectedPractice.start_time))} –{' '}
+            {formatTime(toMinutes(selectedPractice.end_time))}
+          </span>
+          {statuses === null ? (
+            <span>Checking schedules…</span>
+          ) : (
+            <span>
+              {statusCounts.available} available · {statusCounts.conflict} class conflict ·{' '}
+              {statusCounts.unknown} no calendar
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="panel-body">
         {swimmers.length === 0 && <p>No swimmers yet.</p>}
         {swimmers.length > 0 && visibleSwimmers.length === 0 && (
           <p>No swimmers match these filters.</p>
         )}
         <div className="swimmer-grid">
-          {visibleSwimmers.map((swimmer) => (
-            <SwimmerCard key={swimmer.swimmer_id} swimmer={swimmer} />
+          {sortedSwimmers.map((swimmer) => (
+            <SwimmerCard
+              key={swimmer.swimmer_id}
+              swimmer={swimmer}
+              status={statuses?.get(swimmer.swimmer_id)}
+            />
           ))}
         </div>
       </div>

@@ -40,3 +40,5 @@ export interface PracticeConflicts {
   conflict: number[]
   unknown: number[]
 }
+// Where a swimmer stands for the selected practice (from the conflicts endpoint)
+export type SwimmerStatus = 'available' | 'conflict' | 'unknown'

@@ -14,3 +14,12 @@ export function formatTime(totalMinutes: number): string {
   const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12
   return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`
 }
+
+// A date as "YYYY-MM-DD" in the coach's own time zone.
+// (date.toISOString() would give the UTC date, which on a US evening is already tomorrow.)
+export function toDateString(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0') // getMonth() counts from 0
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}

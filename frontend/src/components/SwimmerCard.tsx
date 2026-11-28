@@ -1,4 +1,4 @@
-import type { Swimmer, WeightsGroup } from '../types'
+import type { Swimmer, SwimmerStatus, WeightsGroup } from '../types'
 
 const WEIGHTS_GROUP_LABELS: Record<WeightsGroup, string> = {
   THREE_DAY_A: '3-day A',
@@ -6,19 +6,30 @@ const WEIGHTS_GROUP_LABELS: Record<WeightsGroup, string> = {
   FOUR_DAY: '4-day',
 }
 
-type SwimmerCardProps = {
-  swimmer: Swimmer
+const STATUS_LABELS: Record<SwimmerStatus, string> = {
+  available: 'Available',
+  conflict: 'Class conflict',
+  unknown: 'No calendar',
 }
 
-function SwimmerCard({ swimmer }: SwimmerCardProps) {
+type SwimmerCardProps = {
+  swimmer: Swimmer
+  status?: SwimmerStatus // only set while a practice is selected
+}
+
+function SwimmerCard({ swimmer, status }: SwimmerCardProps) {
   return (
-    <div className="swimmer-card">
+    <div className={status === undefined ? 'swimmer-card' : `swimmer-card ${status}`}>
       <div className="swimmer-name">
         {swimmer.first_name} {swimmer.last_name}
       </div>
       <div className="swimmer-details">
         <span>Weights: {WEIGHTS_GROUP_LABELS[swimmer.weights_group]}</span>
-        {!swimmer.has_schedule && <span className="badge warning">No calendar</span>}
+        {status !== undefined ? (
+          <span className={`badge status-${status}`}>{STATUS_LABELS[status]}</span>
+        ) : (
+          !swimmer.has_schedule && <span className="badge status-unknown">No calendar</span>
+        )}
       </div>
       {swimmer.tags.length > 0 && (
         <div className="swimmer-tags">
