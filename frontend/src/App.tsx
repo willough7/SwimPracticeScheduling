@@ -11,6 +11,7 @@ import {
   getSwimmers,
   setSwimmerLane,
   unassignSwimmer,
+  weekExportUrl,
 } from './api'
 import ContextMenu from './components/ContextMenu'
 import type { MenuItem } from './components/ContextMenu'
@@ -19,6 +20,7 @@ import LanesView from './components/LanesView'
 import Modal from './components/Modal'
 import PracticeForm from './components/PracticeForm'
 import PracticeSummary from './components/PracticeSummary'
+import PrintDay from './components/PrintDay'
 import ScheduleView from './components/ScheduleView'
 import SwimmerDetails from './components/SwimmerDetails'
 import SwimmerForm from './components/SwimmerForm'
@@ -86,6 +88,11 @@ function App() {
   const [dialog, setDialog] = useState<DialogState>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>(null)
   const [error, setError] = useState<string | null>(null)
+  // Set while printing a day: its practices' lanes (practice_id -> swimmer_id -> lane)
+  const [printJob, setPrintJob] = useState<{
+    day: Day
+    lanes: Map<number, Map<number, number>>
+  } | null>(null)
 
   // Load the roster once, when the page opens.
   useEffect(() => {
@@ -196,6 +203,22 @@ function App() {
       ignore = true
     }
   }, [selectedPracticeId, practiceView])
+
+  // Once the print page has been drawn, open the browser's print dialog.
+  // It has to happen in an effect: the page must be on screen before printing.
+  // 'afterprint' fires when the dialog closes (printed or cancelled), and
+  // removes the print page again.
+  useEffect(() => {
+    if (printJob === null) {
+      return
+    }
+    function handleAfterPrint() {
+      setPrintJob(null)
+    }
+    window.addEventListener('afterprint', handleAfterPrint)
+    window.print()
+    return () => window.removeEventListener('afterprint', handleAfterPrint)
+  }, [printJob])
 
   const selectedPractice =
     practices.find((practice) => practice.practice_id === selectedPracticeId) ?? null
@@ -505,6 +528,25 @@ function App() {
     })
   }
 
+  // Print every practice of the selected day. The app only loads lanes for the
+  // practice that's open, so first load them for all of the day's practices.
+  async function handlePrintDay() {
+    try {
+      const placements = await Promise.all(
+        practices.map((practice) => getPracticeLanes(practice.practice_id)),
+      )
+      const lanes = new Map(
+        practices.map((practice, i) => [
+          practice.practice_id,
+          new Map(placements[i].map((p) => [p.swimmer_id, p.lane])),
+        ]),
+      )
+      setPrintJob({ day: selectedDay, lanes })
+    } catch (err) {
+      setError(errorMessage(err))
+    }
+  }
+
   function closeContextMenu() {
     setContextMenu(null)
   }
@@ -537,10 +579,18 @@ function App() {
   }
 
   return (
+    <>
     <div className="app">
       <div className="top-bar">
         <DayTabs selectedDay={selectedDay} onSelectDay={handleSelectDay} />
         <div className="top-bar-actions">
+          <button className="button" onClick={handlePrintDay}>
+            Print day
+          </button>
+          {/* A link styled as a button: the browser downloads the file itself */}
+          <a className="button" href={weekExportUrl(selectedDay)} download>
+            Export Excel
+          </a>
           <button
             className="button"
             disabled={selectedPractice === null}
@@ -691,6 +741,17 @@ function App() {
         />
       )}
     </div>
+
+    {printJob !== null && (
+      <PrintDay
+        day={printJob.day}
+        practices={practices}
+        swimmers={swimmers}
+        assignments={assignments}
+        lanes={printJob.lanes}
+      />
+    )}
+    </>
   )
 }
 

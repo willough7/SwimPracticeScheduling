@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.responses import Response
 from datetime import date
 from app.schemas import (SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut,
                          LaneUpdate, LanePlacementOut)
@@ -6,6 +7,7 @@ from app.storage import swimmers, _ids, practices, _practice_ids, assignments, l
 from app.models import Swimmer, Practice, Day, Assignment
 from app.ics_parser import parse_calendar, monday_of
 from app.conflicts import get_swimmers_status_for_practice
+from app.export import build_week_workbook
 
 app = FastAPI(title="Swim Practice Scheduler")
 
@@ -223,3 +225,20 @@ def get_practice_lanes(practice_id: int):
                   for a, lane in lanes.items() if a.practice_id == practice_id]
     placements.sort(key=lambda placement: (placement.lane, placement.swimmer_id))
     return placements
+
+#export
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# The whole week as an Excel file: one sheet per day, each practice laid out
+# with lanes 1-8 as columns. Content-Disposition "attachment" tells the browser
+# to download it (with that file name) instead of trying to open it in the tab.
+# ?day=1-7 picks the sheet that's showing when the file opens (default Monday).
+@app.get("/export/week.xlsx")
+def export_week(day: Day = Day.MONDAY):
+    content = build_week_workbook(practices.values(), swimmers, assignments, lanes, open_on=day)
+    return Response(
+        content=content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="practice-schedule.xlsx"'},
+    )

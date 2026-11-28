@@ -35,6 +35,7 @@ opentelemetry-exporter-otlp-proto-http==1.45.2
 opentelemetry-proto==1.45.2
 opentelemetry-sdk==1.45.2
 opentelemetry-semantic-conventions==0.66b2
+openpyxl==3.1.5
 packaging==26.3
 pluggy==1.7.0
 protobuf==7.36.2

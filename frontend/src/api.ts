@@ -11,6 +11,12 @@ import type {
 // Every request goes through the Vite proxy, which forwards it to FastAPI.
 const BASE_URL = '/api'
 
+// The whole week as an Excel file, opening on the given day's sheet. Used as a
+// plain link: the backend tells the browser to download it, so no fetch() is needed.
+export function weekExportUrl(openOn: Day) {
+  return `${BASE_URL}/export/week.xlsx?day=${openOn}`
+}
+
 // Thrown for any response that isn't 2xx, so callers can check err.status.
 export class ApiError extends Error {
   status: number
