@@ -15,6 +15,8 @@ type ScheduleViewProps = {
   onSelectPractice: (practiceId: number) => void
   onOpenLanes: (practiceId: number) => void
   onPracticeContextMenu: (practiceId: number, x: number, y: number) => void
+  // Shown instead of the default when there are no practices to draw
+  emptyMessage?: string
 }
 
 // Puts overlapping practices in separate columns so they sit side by side
@@ -48,6 +50,7 @@ function ScheduleView({
   onSelectPractice,
   onOpenLanes,
   onPracticeContextMenu,
+  emptyMessage = 'No practices on this day.',
 }: ScheduleViewProps) {
   const startHours = practices.map((p) => Math.floor(toMinutes(p.start_time) / 60))
   const endHours = practices.map((p) => Math.ceil(toMinutes(p.end_time) / 60))
@@ -65,7 +68,7 @@ function ScheduleView({
 
   return (
     <div className="schedule">
-      {practices.length === 0 && <p className="schedule-empty">No practices on this day.</p>}
+      {practices.length === 0 && <p className="schedule-empty">{emptyMessage}</p>}
 
       <div
         className="schedule-grid"

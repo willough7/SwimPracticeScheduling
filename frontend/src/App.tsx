@@ -25,6 +25,7 @@ import Modal from './components/Modal'
 import PracticeForm from './components/PracticeForm'
 import PracticeSummary from './components/PracticeSummary'
 import PrintDay from './components/PrintDay'
+import ScheduleFilter from './components/ScheduleFilter'
 import ScheduleView from './components/ScheduleView'
 import SwimmerDetails from './components/SwimmerDetails'
 import SwimmerForm from './components/SwimmerForm'
@@ -76,6 +77,8 @@ function App() {
   const [selectedDay, setSelectedDay] = useState<Day>(today())
   const [practices, setPractices] = useState<Practice[]>([])
   const [selectedPracticeId, setSelectedPracticeId] = useState<number | null>(null)
+  // The swimmer picked in the search under the schedule, or null to show every practice
+  const [filterSwimmerId, setFilterSwimmerId] = useState<number | null>(null)
   // Clicked once = 'assign', double-clicked = 'lanes'
   const [practiceView, setPracticeView] = useState<'assign' | 'lanes'>('assign')
   // Lane spots for one practice (swimmer_id -> lane), loaded when its lanes open.
@@ -248,6 +251,23 @@ function App() {
 
   const selectedPractice =
     practices.find((practice) => practice.practice_id === selectedPracticeId) ?? null
+
+  // The swimmer the schedule is filtered to. Looked up by id on every render, so
+  // if that swimmer is deleted this becomes null and the schedule shows everything again.
+  const filterSwimmer =
+    filterSwimmerId === null
+      ? null
+      : (swimmers.find((swimmer) => swimmer.swimmer_id === filterSwimmerId) ?? null)
+
+  // The practices drawn on the schedule: all of the day's, or only the filtered
+  // swimmer's. `assignments` is reloaded whenever the day changes, so this keeps
+  // working as you click through the day tabs.
+  const schedulePractices =
+    filterSwimmer === null
+      ? practices
+      : practices.filter((practice) =>
+          (assignments.get(practice.practice_id) ?? []).includes(filterSwimmer.swimmer_id),
+        )
 
   // What the right side and the bottom panel are showing right now
   const mode: PanelMode =
@@ -603,6 +623,20 @@ function App() {
     }
   }
 
+  // Picking a swimmer in the schedule filter. If the selected practice
+  // isn't one of theirs, deselect it, since it disappears from the schedule.
+  function handleFilterSwimmer(swimmerId: number | null) {
+    setFilterSwimmerId(swimmerId)
+    if (
+      swimmerId !== null &&
+      selectedPracticeId !== null &&
+      !(assignments.get(selectedPracticeId) ?? []).includes(swimmerId)
+    ) {
+      setSelectedPracticeId(null)
+      setPracticeView('assign')
+    }
+  }
+
   function closeContextMenu() {
     setContextMenu(null)
   }
@@ -693,12 +727,22 @@ function App() {
       <div className="workspace">
         <div className="schedule-column">
           <ScheduleView
-            practices={practices}
+            practices={schedulePractices}
             selectedPracticeId={selectedPracticeId}
             assignedCounts={assignedCounts}
             onSelectPractice={handleSelectPractice}
             onOpenLanes={handleOpenLanes}
             onPracticeContextMenu={handlePracticeContextMenu}
+            emptyMessage={
+              filterSwimmer === null
+                ? undefined
+                : `${filterSwimmer.first_name} has no practices on this day.`
+            }
+          />
+          <ScheduleFilter
+            swimmers={swimmers}
+            selectedSwimmer={filterSwimmer}
+            onSelect={handleFilterSwimmer}
           />
         </div>
 
