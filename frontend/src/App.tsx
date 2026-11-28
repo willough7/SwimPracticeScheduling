@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { getPractices, getSwimmers } from './api'
 import DayTabs from './components/DayTabs'
 import ScheduleView from './components/ScheduleView'
+import SwimmerPanel from './components/SwimmerPanel'
 import type { Day, Practice, Swimmer } from './types'
 import './App.css'
 
@@ -83,18 +84,7 @@ function App() {
         onSelectPractice={handleSelectPractice}
       />
 
-      {/* Temporary: this becomes the resizable swimmer panel in step 4. */}
-      <section className="swimmer-list">
-        <h2>Swimmers</h2>
-        {swimmers.length === 0 && <p>No swimmers yet.</p>}
-        <ul>
-          {swimmers.map((swimmer) => (
-            <li key={swimmer.swimmer_id}>
-              {swimmer.first_name} {swimmer.last_name}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SwimmerPanel swimmers={swimmers} />
     </div>
   )
 }
