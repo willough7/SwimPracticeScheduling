@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 from app.main import app
 
@@ -100,3 +102,62 @@ def test_get_of_deleted_swimmer_is_404_error():
 def test_swimmer_does_not_have_ics():
     swimmer_one = create_swimmer()
     assert swimmer_one["has_schedule"] is False
+
+
+# ---------- PUT /swimmers/{swimmer_id} ----------
+
+SAMPLE_ICS = (Path(__file__).parent / "fixtures" / "sample_schedule.ics").read_bytes()
+
+def test_update_swimmer_changes_their_details():
+    swimmer_id = create_swimmer()["swimmer_id"]
+    new_details = {"first_name": "Jeremias", "last_name": "Pock",
+                   "weights_group": "THREE_DAY_B", "tags": ["IM"]}
+
+    response = client.put(f"/swimmers/{swimmer_id}", json=new_details)
+
+    assert response.status_code == 200
+    updated = response.json()
+    assert updated["swimmer_id"] == swimmer_id
+    assert updated["first_name"] == "Jeremias"
+    assert updated["last_name"] == "Pock"
+    assert updated["weights_group"] == "THREE_DAY_B"
+    assert updated["tags"] == ["IM"]
+    # The change is stored, not just echoed back
+    assert client.get(f"/swimmers/{swimmer_id}").json() == updated
+
+def test_update_swimmer_keeps_their_calendar():
+    swimmer_id = create_swimmer()["swimmer_id"]
+    upload = client.put(f"/swimmers/{swimmer_id}/schedule",
+                        files={"file": ("schedule.ics", SAMPLE_ICS, "text/calendar")})
+    assert upload.status_code == 200
+
+    response = client.put(f"/swimmers/{swimmer_id}", json={**VALID_SWIMMER, "first_name": "Renamed"})
+
+    assert response.status_code == 200
+    assert response.json()["has_schedule"] is True
+
+def test_update_swimmer_keeps_their_assignments():
+    swimmer_id = create_swimmer()["swimmer_id"]
+    practice = client.post("/practices", json={"day": 2, "start_time": "06:00:00",
+                                               "end_time": "08:00:00"}).json()
+    client.put(f"/practices/{practice['practice_id']}/swimmers/{swimmer_id}")
+
+    client.put(f"/swimmers/{swimmer_id}", json={**VALID_SWIMMER, "weights_group": "THREE_DAY_A"})
+
+    assigned = client.get(f"/practices/{practice['practice_id']}/swimmers").json()
+    assert [s["swimmer_id"] for s in assigned] == [swimmer_id]
+
+def test_update_nonexisting_swimmer_is_404_error():
+    response = client.put("/swimmers/1", json=VALID_SWIMMER)
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Swimmer not found"
+
+def test_update_swimmer_with_empty_name_is_422_error():
+    swimmer_id = create_swimmer()["swimmer_id"]
+
+    response = client.put(f"/swimmers/{swimmer_id}", json={**VALID_SWIMMER, "first_name": ""})
+
+    assert response.status_code == 422
+    # A rejected update leaves the swimmer unchanged
+    assert client.get(f"/swimmers/{swimmer_id}").json()["first_name"] == "Austin"

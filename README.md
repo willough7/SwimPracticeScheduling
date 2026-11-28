@@ -58,6 +58,7 @@ an id selects one item, and the HTTP method is the action.
 | POST | `/swimmers` | Create a swimmer | 201 |
 | GET | `/swimmers` | List all swimmers | 200 |
 | GET | `/swimmers/{swimmer_id}` | Get one swimmer | 200 |
+| PUT | `/swimmers/{swimmer_id}` | Replace a swimmer's details (name, weights group, tags); keeps their id, calendar, and assignments | 200 |
 | DELETE | `/swimmers/{swimmer_id}` | Delete a swimmer | 204 |
 | PUT | `/swimmers/{swimmer_id}/schedule` | Upload the swimmer's `.ics` class calendar (multipart form field `file`); replaces any earlier upload | 200 |
 
@@ -72,6 +73,7 @@ is rejected with 400 and never replaces a good one.
 | POST | `/practices` | Create a practice | 201 |
 | GET | `/practices` | List practices, optionally filtered with `?day=1`-`7` (Monday-Sunday) | 200 |
 | GET | `/practices/{practice_id}` | Get one practice | 200 |
+| PUT | `/practices/{practice_id}` | Replace every field of a practice; keeps its id and assignments | 200 |
 | DELETE | `/practices/{practice_id}` | Delete a practice | 204 |
 | GET | `/practices/{practice_id}/conflicts?week=YYYY-MM-DD` | Which swimmers can make this practice in the given week | 200 |
 
@@ -90,6 +92,16 @@ is rejected with 400 and never replaces a good one.
   Removing a swimmer who isn't assigned returns 404
   (`"Swimmer is not assigned to this practice"`), so frontend mistakes show up.
 - Deleting a swimmer or a practice also removes its assignments.
+
+### Lanes
+| Method | Path | Does | Success |
+|---|---|---|---|
+| PUT | `/practices/{practice_id}/swimmers/{swimmer_id}/lane` | Put an assigned swimmer in lane 1-8 (`{"lane": 3}`), or take them out of their lane (`{"lane": null}`) | 204 |
+| GET | `/practices/{practice_id}/lanes` | Placed swimmers as `{"swimmer_id", "lane"}`, sorted by lane then swimmer id | 200 |
+
+- Only assigned swimmers can be placed (404 `"Swimmer is not assigned to this practice"` otherwise); lanes outside 1-8 are 422.
+- Taking a swimmer out of their lane keeps them assigned. Unassigning them, or deleting the swimmer or practice, removes their lane.
+- Lanes repeat every week, like assignments.
 
 ### Conflicts
 Practices repeat weekly ("Tuesday 1:30-3:00"), but class calendars have real

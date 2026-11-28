@@ -1,3 +1,4 @@
+from typing import Annotated
 from pydantic import BaseModel, Field, model_validator
 from datetime import time, date
 from app.models import WeightsGroup, Day
@@ -17,7 +18,6 @@ class PracticeCreate(BaseModel):
     start_time: time
     end_time: time
     practice_title: str ="N/A"
-    is_morning: bool = True
 
     @model_validator(mode="after")
     def check_times(self):
@@ -34,3 +34,13 @@ class PracticeConflictsOut(BaseModel):
     available: list[int]
     conflict: list[int]
     unknown: list[int]
+
+LANE_COUNT = 8
+
+class LaneUpdate(BaseModel):
+    # A lane number from 1 to LANE_COUNT, or None to take the swimmer out of their lane
+    lane: Annotated[int, Field(ge=1, le=LANE_COUNT)] | None
+
+class LanePlacementOut(BaseModel):
+    swimmer_id: int
+    lane: int

@@ -30,7 +30,6 @@ TUESDAY_PRACTICE = {
     "start_time": "13:30:00",
     "end_time": "15:00:00",
     "practice_title": "Afternoon swim",
-    "is_morning": False,
 }
 
 def create_swimmer(**overrides) -> dict:

@@ -1,5 +1,6 @@
 import type {
   Day,
+  LanePlacement,
   Practice,
   PracticeConflicts,
   PracticeCreate,
@@ -18,6 +19,12 @@ export class ApiError extends Error {
     super(message)
     this.status = status
   }
+}
+
+// Turns anything caught in a catch block into a message to show the coach.
+// (JavaScript lets you throw anything, so a caught value isn't always an Error.)
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -69,6 +76,11 @@ export function createSwimmer(data: SwimmerCreate) {
   return request<Swimmer>('/swimmers', jsonBody('POST', data))
 }
 
+// Replaces the swimmer's details; their calendar and assignments are kept
+export function updateSwimmer(swimmerId: number, data: SwimmerCreate) {
+  return request<Swimmer>(`/swimmers/${swimmerId}`, jsonBody('PUT', data))
+}
+
 export function deleteSwimmer(swimmerId: number) {
   return request<void>(`/swimmers/${swimmerId}`, { method: 'DELETE' })
 }
@@ -92,6 +104,11 @@ export function getPractice(practiceId: number) {
 
 export function createPractice(data: PracticeCreate) {
   return request<Practice>('/practices', jsonBody('POST', data))
+}
+
+// Replaces every field of the practice; its assignments are kept
+export function updatePractice(practiceId: number, data: PracticeCreate) {
+  return request<Practice>(`/practices/${practiceId}`, jsonBody('PUT', data))
 }
 
 export function deletePractice(practiceId: number) {
@@ -119,4 +136,18 @@ export function getPracticeSwimmers(practiceId: number) {
 
 export function getSwimmerPractices(swimmerId: number) {
   return request<Practice[]>(`/swimmers/${swimmerId}/practices`)
+}
+
+// Lanes
+
+export function getPracticeLanes(practiceId: number) {
+  return request<LanePlacement[]>(`/practices/${practiceId}/lanes`)
+}
+
+// lane is 1-8, or null to take the swimmer out of their lane (they stay assigned)
+export function setSwimmerLane(practiceId: number, swimmerId: number, lane: number | null) {
+  return request<void>(
+    `/practices/${practiceId}/swimmers/${swimmerId}/lane`,
+    jsonBody('PUT', { lane }),
+  )
 }

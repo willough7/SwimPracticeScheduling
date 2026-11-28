@@ -24,13 +24,11 @@ export interface PracticeCreate {
   start_time: string // "HH:MM" or "HH:MM:SS"
   end_time: string
   practice_title?: string
-  is_morning?: boolean
 }
 
 export interface Practice extends PracticeCreate {
   practice_id: number
   practice_title: string
-  is_morning: boolean
 }
 
 export interface PracticeConflicts {
@@ -42,3 +40,15 @@ export interface PracticeConflicts {
 }
 // Where a swimmer stands for the selected practice (from the conflicts endpoint)
 export type SwimmerStatus = 'available' | 'conflict' | 'unknown'
+
+// One swimmer's spot in a practice's pool lanes
+export interface LanePlacement {
+  swimmer_id: number
+  lane: number // 1-8
+}
+
+// What the panels show for the selected practice:
+//   browse = no practice selected; clicking a swimmer opens their details
+//   assign = practice clicked once; the full roster, click to assign
+//   lanes  = practice double-clicked; its lanes, drag swimmers into them
+export type PanelMode = 'browse' | 'assign' | 'lanes'

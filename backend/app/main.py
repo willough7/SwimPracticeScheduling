@@ -1,7 +1,8 @@
 from fastapi import FastAPI, HTTPException, UploadFile
 from datetime import date
-from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut
-from app.storage import swimmers, _ids, practices, _practice_ids, assignments
+from app.schemas import (SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut,
+                         LaneUpdate, LanePlacementOut)
+from app.storage import swimmers, _ids, practices, _practice_ids, assignments, lanes
 from app.models import Swimmer, Practice, Day, Assignment
 from app.ics_parser import parse_calendar, monday_of
 from app.conflicts import get_swimmers_status_for_practice
@@ -41,13 +42,32 @@ def get_swimmer(swimmer_id: int):
         raise HTTPException(status_code=404, detail="Swimmer not found")
     return swimmer_to_swimmerout(swimmer)
 
+# PUT replaces the swimmer's details with the ones sent. The id stays the same,
+# so their assignments still point at them, and their uploaded calendar is kept
+# (calendars are changed through PUT /swimmers/{swimmer_id}/schedule instead).
+@app.put("/swimmers/{swimmer_id}", response_model=SwimmerOut)
+def update_swimmer(swimmer_id: int, data: SwimmerCreate):
+    swimmer = swimmers.get(swimmer_id)
+    if(swimmer is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    swimmer.first_name = data.first_name
+    swimmer.last_name = data.last_name
+    swimmer.weights_group = data.weights_group
+    swimmer.tags = data.tags
+
+    return swimmer_to_swimmerout(swimmer)
+
 @app.delete("/swimmers/{swimmer_id}", status_code=204)
 def delete_swimmer(swimmer_id: int):
     if swimmers.get(swimmer_id) is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
     swimmers.pop(swimmer_id)
-    # Remove this swimmer's assignments too, so none point at a swimmer that no longer exists.
-    assignments.difference_update({a for a in assignments if a.swimmer_id == swimmer_id})
+    # Remove this swimmer's assignments (and their lane spots) too, so none point at a swimmer that no longer exists.
+    removed = {a for a in assignments if a.swimmer_id == swimmer_id}
+    assignments.difference_update(removed)
+    for assignment in removed:
+        lanes.pop(assignment, None)
 
 @app.put("/swimmers/{swimmer_id}/schedule", response_model=SwimmerOut)
 async def upload_schedule(swimmer_id: int, file: UploadFile):
@@ -85,13 +105,27 @@ def get_practice(practice_id: int):
         raise HTTPException(status_code=404, detail="Practice not found")
     return practices.get(practice_id)
 
+# PUT replaces every field of the practice. The id stays the same, so its
+# swimmer assignments carry over to the new day and times.
+@app.put("/practices/{practice_id}", response_model=PracticeOut)
+def update_practice(practice_id: int, data: PracticeCreate):
+    if(practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    practice = Practice(practice_id=practice_id, **data.model_dump())
+    practices[practice_id] = practice
+    return practice
+
 @app.delete("/practices/{practice_id}", status_code=204)
 def delete_practice(practice_id: int):
     if practices.get(practice_id) is None:
         raise HTTPException(status_code=404, detail="Practice not found")
     practices.pop(practice_id)
-    # Remove this practice's assignments too, so none point at a practice that no longer exists.
-    assignments.difference_update({a for a in assignments if a.practice_id == practice_id})
+    # Remove this practice's assignments (and their lane spots) too, so none point at a practice that no longer exists.
+    removed = {a for a in assignments if a.practice_id == practice_id}
+    assignments.difference_update(removed)
+    for assignment in removed:
+        lanes.pop(assignment, None)
 
 @app.get("/practices/{practice_id}/conflicts", response_model=PracticeConflictsOut)
 def get_practice_conflicts(practice_id: int, week: date):
@@ -145,6 +179,7 @@ def remove_practice_assignment(practice_id: int, swimmer_id: int):
         raise HTTPException(status_code=404, detail="Swimmer is not assigned to this practice")
 
     assignments.remove(assignment)
+    lanes.pop(assignment, None)   # an unassigned swimmer can't keep a lane
 
 
 @app.get("/swimmers/{swimmer_id}/practices", response_model=list[PracticeOut])
@@ -156,3 +191,35 @@ def get_swimmer_practices(swimmer_id: int):
     assigned.sort(key=lambda practice: practice.practice_id)
 
     return assigned
+
+#lanes
+
+# Lanes repeat every week, like assignments. Only assigned swimmers can be
+# placed in a lane; sending {"lane": null} takes a swimmer out of their lane
+# but keeps them assigned to the practice.
+@app.put("/practices/{practice_id}/swimmers/{swimmer_id}/lane", status_code=204)
+def set_swimmer_lane(practice_id: int, swimmer_id: int, data: LaneUpdate):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+    if (swimmers.get(swimmer_id) is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    assignment = Assignment(swimmer_id=swimmer_id, practice_id=practice_id)
+    if (assignment not in assignments):
+        raise HTTPException(status_code=404, detail="Swimmer is not assigned to this practice")
+
+    if (data.lane is None):
+        lanes.pop(assignment, None)
+    else:
+        lanes[assignment] = data.lane
+
+
+@app.get("/practices/{practice_id}/lanes", response_model=list[LanePlacementOut])
+def get_practice_lanes(practice_id: int):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    placements = [LanePlacementOut(swimmer_id=a.swimmer_id, lane=lane)
+                  for a, lane in lanes.items() if a.practice_id == practice_id]
+    placements.sort(key=lambda placement: (placement.lane, placement.swimmer_id))
+    return placements

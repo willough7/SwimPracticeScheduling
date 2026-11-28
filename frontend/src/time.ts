@@ -23,3 +23,20 @@ export function toDateString(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+// 390 -> "06:30", the format the backend accepts for a time of day
+export function toTimeString(totalMinutes: number): string {
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, '0')
+  const minutes = String(totalMinutes % 60).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+// 90 -> "1h 30m", 60 -> "1h", 45 -> "45m"
+export function formatDuration(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) {
+    return `${minutes}m`
+  }
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`
+}

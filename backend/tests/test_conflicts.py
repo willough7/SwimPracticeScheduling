@@ -17,8 +17,7 @@ def create_practice(**kwargs):
                   practice_title="Swim",
                   day=Day.TUESDAY,
                   start_time=time(13),
-                  end_time=time(15),
-                  is_morning=False)
+                  end_time=time(15))
     defaults.update(kwargs)
     return Practice(**defaults)
 
