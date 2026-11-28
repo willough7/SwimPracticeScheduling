@@ -11,6 +11,7 @@ const DEFAULT_LAST_HOUR = 20
 type ScheduleViewProps = {
   practices: Practice[]
   selectedPracticeId: number | null
+  assignedCounts: Map<number, number> // practice_id -> number of swimmers assigned
   onSelectPractice: (practiceId: number) => void
 }
 
@@ -38,7 +39,12 @@ function assignLanes(practices: Practice[]) {
   return { laneOf, laneCount: Math.max(laneEnds.length, 1) }
 }
 
-function ScheduleView({ practices, selectedPracticeId, onSelectPractice }: ScheduleViewProps) {
+function ScheduleView({
+  practices,
+  selectedPracticeId,
+  assignedCounts,
+  onSelectPractice,
+}: ScheduleViewProps) {
   const startHours = practices.map((p) => Math.floor(toMinutes(p.start_time) / 60))
   const endHours = practices.map((p) => Math.ceil(toMinutes(p.end_time) / 60))
   const firstHour = Math.min(DEFAULT_FIRST_HOUR, ...startHours)
@@ -73,6 +79,7 @@ function ScheduleView({ practices, selectedPracticeId, onSelectPractice }: Sched
             const end = toMinutes(practice.end_time)
             const lane = laneOf.get(practice.practice_id) ?? 0
             const isSelected = practice.practice_id === selectedPracticeId
+            const count = assignedCounts.get(practice.practice_id) ?? 0
 
             return (
               <button
@@ -89,6 +96,9 @@ function ScheduleView({ practices, selectedPracticeId, onSelectPractice }: Sched
                 <span className="practice-title">{practice.practice_title}</span>
                 <span className="practice-time">
                   {formatTime(start)} – {formatTime(end)}
+                </span>
+                <span className="practice-count">
+                  {count} {count === 1 ? 'swimmer' : 'swimmers'}
                 </span>
               </button>
             )

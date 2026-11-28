@@ -19,9 +19,19 @@ type SwimmerPanelProps = {
   swimmers: Swimmer[]
   statuses: Map<number, SwimmerStatus> | null // null when no practice is selected
   selectedPractice: Practice | null
+  assignedIds: Set<number> | null // who is assigned to the selected practice
+  pendingIds: Set<number> // swimmers with a request in flight
+  onToggleAssignment: (swimmerId: number) => void
 }
 
-function SwimmerPanel({ swimmers, statuses, selectedPractice }: SwimmerPanelProps) {
+function SwimmerPanel({
+  swimmers,
+  statuses,
+  selectedPractice,
+  assignedIds,
+  pendingIds,
+  onToggleAssignment,
+}: SwimmerPanelProps) {
   const [height, setHeight] = useState(DEFAULT_PANEL_HEIGHT)
   const [search, setSearch] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
@@ -130,6 +140,12 @@ function SwimmerPanel({ swimmers, statuses, selectedPractice }: SwimmerPanelProp
         )}
       </div>
 
+      {selectedPractice === null && (
+        <div className="availability-bar">
+          <span>Click a practice to see who can make it and assign swimmers.</span>
+        </div>
+      )}
+
       {selectedPractice !== null && (
         <div className="availability-bar">
           <span>
@@ -141,7 +157,7 @@ function SwimmerPanel({ swimmers, statuses, selectedPractice }: SwimmerPanelProp
             <span>Checking schedules…</span>
           ) : (
             <span>
-              {statusCounts.available} available · {statusCounts.conflict} class conflict ·{' '}
+              <strong>{assignedIds?.size ?? 0} assigned</strong> · {statusCounts.available} available · {statusCounts.conflict} class conflict ·{' '}
               {statusCounts.unknown} no calendar
             </span>
           )}
@@ -159,6 +175,9 @@ function SwimmerPanel({ swimmers, statuses, selectedPractice }: SwimmerPanelProp
               key={swimmer.swimmer_id}
               swimmer={swimmer}
               status={statuses?.get(swimmer.swimmer_id)}
+              assigned={assignedIds?.has(swimmer.swimmer_id) ?? false}
+              disabled={selectedPractice === null || pendingIds.has(swimmer.swimmer_id)}
+              onToggle={() => onToggleAssignment(swimmer.swimmer_id)}
             />
           ))}
         </div>
