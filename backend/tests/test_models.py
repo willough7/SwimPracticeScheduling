@@ -73,10 +73,6 @@ def test_valid_practice_is_created():
     assert p.start_time < p.end_time
 
 
-def test_practice_is_morning_by_default():
-    assert make_practice().is_morning is True
-
-
 def test_practice_end_before_start_raises():
     with pytest.raises(ValueError):
         make_practice(start_time=time(8, 0), end_time=time(6, 0))

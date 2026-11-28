@@ -36,7 +36,6 @@ TUESDAY_PRACTICE = {
     "start_time": "13:30:00",
     "end_time": "15:00:00",
     "practice_title": "Afternoon swim",
-    "is_morning": False,
 }
 
 def create_swimmer(**overrides) -> dict:
@@ -160,8 +159,7 @@ def test_unassign_only_removes_that_swimmer():
 
 def test_unassign_only_removes_that_practice():
     # A swimmer in two practices, removed from one, stays in the other.
-    morning_id = create_practice(start_time="06:00:00", end_time="08:00:00",
-                                 is_morning=True)["practice_id"]
+    morning_id = create_practice(start_time="06:00:00", end_time="08:00:00")["practice_id"]
     afternoon_id = create_practice()["practice_id"]
     swimmer_id = create_swimmer()["swimmer_id"]
     assign(morning_id, swimmer_id)
@@ -244,8 +242,7 @@ def test_list_is_sorted_by_swimmer_id():
     assert practice_swimmer_ids(practice_id) == sorted(ids)
 
 def test_list_only_includes_that_practices_swimmers():
-    morning_id = create_practice(start_time="06:00:00", end_time="08:00:00",
-                                 is_morning=True)["practice_id"]
+    morning_id = create_practice(start_time="06:00:00", end_time="08:00:00")["practice_id"]
     afternoon_id = create_practice()["practice_id"]
     both = create_swimmer(first_name="Both")["swimmer_id"]
     morning_only = create_swimmer(first_name="Morning")["swimmer_id"]

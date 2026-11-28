@@ -1,10 +1,14 @@
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Response, UploadFile
 from datetime import date
-from app.schemas import SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut
-from app.storage import swimmers, _ids, practices, _practice_ids, assignments
+from app.schemas import (SwimmerCreate, SwimmerOut, PracticeCreate, PracticeOut, PracticeConflictsOut,
+                         LaneUpdate, LanePlacementOut, LoginRequest, AdminOut)
+from app.storage import swimmers, _ids, practices, _practice_ids, assignments, lanes
 from app.models import Swimmer, Practice, Day, Assignment
 from app.ics_parser import parse_calendar, monday_of
 from app.conflicts import get_swimmers_status_for_practice
+from app.export import build_week_workbook
+from app import admin_accounts
+from app.auth import current_admin, require_admin, start_session, end_session
 
 app = FastAPI(title="Swim Practice Scheduler")
 
@@ -19,11 +23,39 @@ def swimmer_to_swimmerout(swimmer: Swimmer) -> SwimmerOut:
         )
 
 
+# ---------- Admin login ----------
+# Routes that create, edit, or delete have dependencies=[Depends(require_admin)],
+# which answers 401 unless an admin is logged in. Everything else, including
+# viewing and uploading a swimmer's own calendar, works without logging in.
+
+# No lockout after wrong passwords: a deliberate choice (see README), so a
+# strong admin password is what keeps guessing impractical.
+@app.post("/auth/login", response_model=AdminOut)
+def login(data: LoginRequest, response: Response):
+    admin = admin_accounts.check_login(data.username, data.password)
+    if (admin is None):
+        # Same message for an unknown username and a wrong password, so the
+        # response doesn't reveal which usernames exist
+        raise HTTPException(status_code=401, detail="Wrong username or password")
+
+    start_session(response, admin)
+    return AdminOut(username=admin)
+
+@app.post("/auth/logout", status_code=204)
+def logout(response: Response, admin_session: str | None = Cookie(default=None)):
+    end_session(response, admin_session)
+
+# Who is logged in, so the frontend knows whether to show the editing controls
+@app.get("/auth/me", response_model=AdminOut)
+def who_am_i(admin: str | None = Depends(current_admin)):
+    return AdminOut(username=admin)
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-@app.post("/swimmers", status_code=201, response_model=SwimmerOut)
+@app.post("/swimmers", status_code=201, response_model=SwimmerOut, dependencies=[Depends(require_admin)])
 def create_swimmer(data: SwimmerCreate):
     new_id = next(_ids)
     swimmer = Swimmer(swimmer_id=new_id, **data.model_dump())
@@ -41,13 +73,32 @@ def get_swimmer(swimmer_id: int):
         raise HTTPException(status_code=404, detail="Swimmer not found")
     return swimmer_to_swimmerout(swimmer)
 
-@app.delete("/swimmers/{swimmer_id}", status_code=204)
+# PUT replaces the swimmer's details with the ones sent. The id stays the same,
+# so their assignments still point at them, and their uploaded calendar is kept
+# (calendars are changed through PUT /swimmers/{swimmer_id}/schedule instead).
+@app.put("/swimmers/{swimmer_id}", response_model=SwimmerOut, dependencies=[Depends(require_admin)])
+def update_swimmer(swimmer_id: int, data: SwimmerCreate):
+    swimmer = swimmers.get(swimmer_id)
+    if(swimmer is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    swimmer.first_name = data.first_name
+    swimmer.last_name = data.last_name
+    swimmer.weights_group = data.weights_group
+    swimmer.tags = data.tags
+
+    return swimmer_to_swimmerout(swimmer)
+
+@app.delete("/swimmers/{swimmer_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_swimmer(swimmer_id: int):
     if swimmers.get(swimmer_id) is None:
         raise HTTPException(status_code=404, detail="Swimmer not found")
     swimmers.pop(swimmer_id)
-    # Remove this swimmer's assignments too, so none point at a swimmer that no longer exists.
-    assignments.difference_update({a for a in assignments if a.swimmer_id == swimmer_id})
+    # Remove this swimmer's assignments (and their lane spots) too, so none point at a swimmer that no longer exists.
+    removed = {a for a in assignments if a.swimmer_id == swimmer_id}
+    assignments.difference_update(removed)
+    for assignment in removed:
+        lanes.pop(assignment, None)
 
 @app.put("/swimmers/{swimmer_id}/schedule", response_model=SwimmerOut)
 async def upload_schedule(swimmer_id: int, file: UploadFile):
@@ -66,7 +117,7 @@ async def upload_schedule(swimmer_id: int, file: UploadFile):
 
     return swimmer_to_swimmerout(swimmer)
 
-@app.post("/practices", status_code=201, response_model=PracticeOut)
+@app.post("/practices", status_code=201, response_model=PracticeOut, dependencies=[Depends(require_admin)])
 def create_practice(data: PracticeCreate):
     new_id = next(_practice_ids)
     practice = Practice(practice_id=new_id, **data.model_dump())
@@ -85,13 +136,27 @@ def get_practice(practice_id: int):
         raise HTTPException(status_code=404, detail="Practice not found")
     return practices.get(practice_id)
 
-@app.delete("/practices/{practice_id}", status_code=204)
+# PUT replaces every field of the practice. The id stays the same, so its
+# swimmer assignments carry over to the new day and times.
+@app.put("/practices/{practice_id}", response_model=PracticeOut, dependencies=[Depends(require_admin)])
+def update_practice(practice_id: int, data: PracticeCreate):
+    if(practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    practice = Practice(practice_id=practice_id, **data.model_dump())
+    practices[practice_id] = practice
+    return practice
+
+@app.delete("/practices/{practice_id}", status_code=204, dependencies=[Depends(require_admin)])
 def delete_practice(practice_id: int):
     if practices.get(practice_id) is None:
         raise HTTPException(status_code=404, detail="Practice not found")
     practices.pop(practice_id)
-    # Remove this practice's assignments too, so none point at a practice that no longer exists.
-    assignments.difference_update({a for a in assignments if a.practice_id == practice_id})
+    # Remove this practice's assignments (and their lane spots) too, so none point at a practice that no longer exists.
+    removed = {a for a in assignments if a.practice_id == practice_id}
+    assignments.difference_update(removed)
+    for assignment in removed:
+        lanes.pop(assignment, None)
 
 @app.get("/practices/{practice_id}/conflicts", response_model=PracticeConflictsOut)
 def get_practice_conflicts(practice_id: int, week: date):
@@ -110,9 +175,9 @@ def get_practice_conflicts(practice_id: int, week: date):
 
 #assignments
 
-# No conflict check on purpose: the coach can assign anyone,
+# No conflict check on purpose: an admin can assign anyone,
 # the gray-out in the UI is only a warning.
-@app.put("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204)
+@app.put("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204, dependencies=[Depends(require_admin)])
 def make_practice_assignment(practice_id: int, swimmer_id: int):
     if (practices.get(practice_id) is None):
         raise HTTPException(status_code=404, detail="Practice not found")
@@ -133,7 +198,7 @@ def get_practice_swimmers(practice_id: int):
     return [swimmer_to_swimmerout(swimmer) for swimmer in assigned]
 
 
-@app.delete("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204)
+@app.delete("/practices/{practice_id}/swimmers/{swimmer_id}", status_code=204, dependencies=[Depends(require_admin)])
 def remove_practice_assignment(practice_id: int, swimmer_id: int):
     if (practices.get(practice_id) is None):
         raise HTTPException(status_code=404, detail="Practice not found")
@@ -145,6 +210,7 @@ def remove_practice_assignment(practice_id: int, swimmer_id: int):
         raise HTTPException(status_code=404, detail="Swimmer is not assigned to this practice")
 
     assignments.remove(assignment)
+    lanes.pop(assignment, None)   # an unassigned swimmer can't keep a lane
 
 
 @app.get("/swimmers/{swimmer_id}/practices", response_model=list[PracticeOut])
@@ -156,3 +222,52 @@ def get_swimmer_practices(swimmer_id: int):
     assigned.sort(key=lambda practice: practice.practice_id)
 
     return assigned
+
+#lanes
+
+# Lanes repeat every week, like assignments. Only assigned swimmers can be
+# placed in a lane; sending {"lane": null} takes a swimmer out of their lane
+# but keeps them assigned to the practice.
+@app.put("/practices/{practice_id}/swimmers/{swimmer_id}/lane", status_code=204, dependencies=[Depends(require_admin)])
+def set_swimmer_lane(practice_id: int, swimmer_id: int, data: LaneUpdate):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+    if (swimmers.get(swimmer_id) is None):
+        raise HTTPException(status_code=404, detail="Swimmer not found")
+
+    assignment = Assignment(swimmer_id=swimmer_id, practice_id=practice_id)
+    if (assignment not in assignments):
+        raise HTTPException(status_code=404, detail="Swimmer is not assigned to this practice")
+
+    if (data.lane is None):
+        lanes.pop(assignment, None)
+    else:
+        lanes[assignment] = data.lane
+
+
+@app.get("/practices/{practice_id}/lanes", response_model=list[LanePlacementOut])
+def get_practice_lanes(practice_id: int):
+    if (practices.get(practice_id) is None):
+        raise HTTPException(status_code=404, detail="Practice not found")
+
+    placements = [LanePlacementOut(swimmer_id=a.swimmer_id, lane=lane)
+                  for a, lane in lanes.items() if a.practice_id == practice_id]
+    placements.sort(key=lambda placement: (placement.lane, placement.swimmer_id))
+    return placements
+
+#export
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# The whole week as an Excel file: one sheet per day, each practice laid out
+# with lanes 1-8 as columns. Content-Disposition "attachment" tells the browser
+# to download it (with that file name) instead of trying to open it in the tab.
+# ?day=1-7 picks the sheet that's showing when the file opens (default Monday).
+@app.get("/export/week.xlsx")
+def export_week(day: Day = Day.MONDAY):
+    content = build_week_workbook(practices.values(), swimmers, assignments, lanes, open_on=day)
+    return Response(
+        content=content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": 'attachment; filename="practice-schedule.xlsx"'},
+    )
